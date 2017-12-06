@@ -61,6 +61,14 @@ def map_corpus(vocab_map, raw_corpus, max_len=100):
         ids_corpus[id] = item   
     return ids_corpus
 
+def get_embeddings(titles, bodies, vocab_map, emb_vals):
+    """Returns a numpy arrays [[title] * # questions] and [[body] * # questions]
+    """
+    title_embeddings = np.array([[emb_vals[word_id-1] for word_id in title] for title in titles])
+    body_embeddings = np.array([[emb_vals[word_id-1] for word_id in body] for body in bodies])
+
+    return title_embeddings, body_embeddings
+
 def read_annotations(path, K_neg=20):
     """Returns a tuple with:
     1. Question ID
