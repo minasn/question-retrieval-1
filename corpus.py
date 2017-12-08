@@ -69,8 +69,20 @@ def map_corpus(vocab_map, raw_corpus, max_len=100):
 def get_embeddings(titles, bodies, vocab_map, emb_vals):
     """Returns a numpy arrays [[title_word x # words] x # questions] and [[body_word x # words] x # questions]
     """
-    title_embeddings = [[emb_vals[word_id] for word_id in title] for title in titles]
-    body_embeddings = [[emb_vals[word_id] for word_id in body] for body in bodies]
+    
+    # try:
+    #     title_embeddings = [[emb_vals[word_id] for word_id in title] for title in titles]
+    # except IndexError:
+    #     for title in titles:
+    #         for word_id in title:
+    #             trying = emb_vals[word_id]
+    #             # try:
+    #             #     trying = emb_vals[word_id]
+    #             # except IndexError:
+    #             #     print title
+    #             #     print word_id
+    title_embeddings = [[emb_vals[int(word_id)] for word_id in title] for title in titles]
+    body_embeddings = [[emb_vals[int(word_id)] for word_id in body] for body in bodies]
 
     # below for debugging purposes
     # title_embeddings = []
@@ -79,23 +91,25 @@ def get_embeddings(titles, bodies, vocab_map, emb_vals):
     # for title in titles:
     #     title_embedding = []
     #     for word_id in title:
-    #         try:
-    #             title_embedding.append(emb_vals[word_id])
-    #         except:
-    #             print "title"
-    #             print(word_id, type(word_id))
-    #             print(emb_vals[word_id])
+    #         title_embedding.append(emb_vals[word_id])
+    #         # try:
+    #         #     title_embedding.append(emb_vals[word_id])
+    #         # except:
+    #         #     print "title"
+    #         #     print(word_id, type(word_id))
+    #         #     print(emb_vals[word_id])
     #     title_embeddings.append(title_embedding)
 
     # for body in bodies:
     #     body_embedding = []
     #     for word_id in body:
-    #         try:
-    #             body_embeddings.append(emb_vals[word_id])
-    #         except:
-    #             print "body"
-    #             print(word_id, type(word_id))
-    #             print(emb_vals[word_id])
+    #         body_embeddings.append(emb_vals[word_id])
+    #         # try:
+    #         #     body_embeddings.append(emb_vals[word_id])
+    #         # except:
+    #         #     print "body"
+    #         #     print(word_id, type(word_id))
+    #         #     print(emb_vals[word_id])
     #     body_embeddings.append(body_embedding)
 
     return title_embeddings, body_embeddings
@@ -159,6 +173,7 @@ def create_batches(ids_corpus, data, batch_size, padding_id):
         pos = [ pid2id[q] for q, l in zip(qids, qlabels) if l == 1 and q in pid2id ]
         neg = [ pid2id[q] for q, l in zip(qids, qlabels) if l == 0 and q in pid2id ]
         triples += [ [pid,x]+neg for x in pos ]
+        #print titles
 
         #once we've accumulated enough data to create a batch, or we've reached end of data
         if count == batch_size or data_point == N-1:

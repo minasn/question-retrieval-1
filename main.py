@@ -11,18 +11,24 @@ import torch.autograd as autograd
 def main(args):
     raw_corpus = corpus.read_corpus(args.corpus)
     list_words, vocab_map, embeddings, padding_id = corpus.load_embeddings(corpus.load_embedding_iterator(args.embeddings))
+    print("loaded embeddings")
     ids_corpus = corpus.map_corpus(vocab_map, raw_corpus)
     annotations = corpus.read_annotations(args.train)
+    print("got annotations")
 
     training_batches = corpus.create_batches(ids_corpus, annotations, args.batch_size, padding_id)
+    print("got batches")
     
     lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
     # lstm documentation: http://pytorch.org/docs/master/nn.html?highlight=nn%20lstm#torch.nn.LSTM
     # 
-
+    count = 1
+    hidden_states = []
     for batch in training_batches:
+        if count%10 == 0:
+            print(count)
         titles, bodies, triples = batch
         title_length, title_num_questions = titles.shape
         body_length, body_num_questions = bodies.shape
@@ -69,9 +75,11 @@ def main(args):
         # average all words of each question from body_out
         # body_out (max sequence length) x (batch size) x (hidden size)
         average_body_out = average_questions(body_out, bodies, padding_id)
+        hidden_states.append(average_body_out)
         # print "avg body out "
         # print len(average_body_out)
         # print "\n"
+        count+=1
 
 def average_questions(hidden, ids, padding_id, eps=1e-10):
     """Average the outputs from the hidden states of questions, excluding padding.
