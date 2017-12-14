@@ -87,30 +87,34 @@ def main(args):
         # print "\n"
         count+=1
 
+        # average body and title
+        # representations of the questions as found by the LSTM
+        hidden = (average_title_out + average_body_out) * 0.5
+
+        # triples_vectors is a matrix of the vectors representing the questions
+        # as indicated by the indices in triples 
+        triples_vectors = np.vectorize(lambda x: hidden[x])(triples)
+
         # input matrix to the loss funcion of dimensions (questions x 21)
         # questions is the batch size
         # s(0, 1), s(0, 2), ..., s(0, 21)
-        # TODO do we need to do something with triples first?
-        # does triples include both titles and bodies or nah
-        inputs = np.apply_along_axis(cos_sim_func, 0, triples)
-        # does this need be (21, 1)? to be a column of 0's
+        inputs = np.apply_along_axis(cos_sim_func, 0, triples_vectors)
+        # does this need be (21, 1)? to be a column of 0's or just (21)
         targets = np.zeros(21, 1)
 
         # outputs a Variable
         # By default, the losses are averaged over observations for each minibatch.
         loss = loss_function(inputs, targets)
         loss.backward()
-        # optimizer.step() ??
+        # optimizer.step() TODO is this needed ??
 
-def cos_sim_func(triple):
+def cos_sim_func(triples_vectors):
     """Create an array of the cosine similarity scores of each vector
     in triple and the first vector in triple. Excludes the first vector.
     """
-    # TODO transform triple from indices to the vector
-    # representations of the questions as found by the LSTM (is that right ??)
-    cos_sim = np.vectorize(lambda x: 1 - spatial.distance.cosine(triple[0], x))
+    cos_sim = np.vectorize(lambda x: 1 - spatial.distance.cosine(triples_vectors[0], x))
     # exclude the first question in triple
-    return cos_sim(triple)[1:]
+    return cos_sim(triples_vectors)[1:]
 
 def average_questions(hidden, ids, padding_id, eps=1e-10):
     """Average the outputs from the hidden states of questions, excluding padding.
