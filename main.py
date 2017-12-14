@@ -4,8 +4,11 @@ import corpus
 
 import numpy as np
 
+from scipy import spatial
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.autograd as autograd
 
 def main(args):
@@ -20,6 +23,9 @@ def main(args):
     print("got batches")
     
     lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
+    
+    # define the loss function 
+    loss_function = F.multi_margin_loss()
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
     # lstm documentation: http://pytorch.org/docs/master/nn.html?highlight=nn%20lstm#torch.nn.LSTM
@@ -80,6 +86,31 @@ def main(args):
         # print len(average_body_out)
         # print "\n"
         count+=1
+
+        # input matrix to the loss funcion of dimensions (questions x 21)
+        # questions is the batch size
+        # s(0, 1), s(0, 2), ..., s(0, 21)
+        # TODO do we need to do something with triples first?
+        # does triples include both titles and bodies or nah
+        inputs = np.apply_along_axis(cos_sim_func, 0, triples)
+        # does this need be (21, 1)? to be a column of 0's
+        targets = np.zeros(21, 1)
+
+        # outputs a Variable
+        # By default, the losses are averaged over observations for each minibatch.
+        loss = loss_function(inputs, targets)
+        loss.backward()
+        # optimizer.step() ??
+
+def cos_sim_func(triple):
+    """Create an array of the cosine similarity scores of each vector
+    in triple and the first vector in triple. Excludes the first vector.
+    """
+    # TODO transform triple from indices to the vector
+    # representations of the questions as found by the LSTM (is that right ??)
+    cos_sim = np.vectorize(lambda x: 1 - spatial.distance.cosine(triple[0], x))
+    # exclude the first question in triple
+    return cos_sim(triple)[1:]
 
 def average_questions(hidden, ids, padding_id, eps=1e-10):
     """Average the outputs from the hidden states of questions, excluding padding.
