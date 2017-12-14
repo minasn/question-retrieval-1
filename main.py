@@ -23,9 +23,6 @@ def main(args):
     print("got batches")
     
     lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
-    
-    # define the loss function 
-    loss_function = F.multi_margin_loss()
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
     # lstm documentation: http://pytorch.org/docs/master/nn.html?highlight=nn%20lstm#torch.nn.LSTM
@@ -104,7 +101,8 @@ def main(args):
 
         # outputs a Variable
         # By default, the losses are averaged over observations for each minibatch.
-        loss = loss_function(inputs, targets)
+        loss_function = F.multi_margin_loss(inputs, targets)
+        # loss = loss_function(inputs, targets)
         loss.backward()
         # optimizer.step() TODO is this needed ??
 
