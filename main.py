@@ -6,6 +6,7 @@ import numpy as np
 
 from scipy import spatial
 from evaluation import *
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -15,6 +16,7 @@ from torch.optim import Adam
 import torch.autograd as autograd
 
 def main(args):
+    time1 = datetime.now()
     raw_corpus = corpus.read_corpus(args.corpus)
     list_words, vocab_map, embeddings, padding_id = corpus.load_embeddings(corpus.load_embedding_iterator(args.embeddings))
     print("loaded embeddings")
@@ -24,6 +26,9 @@ def main(args):
 
     training_batches = corpus.create_batches(ids_corpus, annotations, args.batch_size, padding_id)
     print("got batches")
+
+    time2 = datetime.now()
+    print "time to preprocess: " + str(time2-time1)
     
     lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
     optimizer = Adam(lstm.parameters())
@@ -34,72 +39,78 @@ def main(args):
     count = 1
     hidden_states = []
     total_loss = 0.0
-    for batch in training_batches:
-        optimizer.zero_grad()
-        if count%10 == 0:
-            print(count)
-        titles, bodies, triples = batch
-        title_length, title_num_questions = titles.shape
-        body_length, body_num_questions = bodies.shape
-        title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
-        
-        # title
-        title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-        title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
-        # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
+    time_begin = datetime.now()
+    for epoch in range(10):
+        print "epoch = " + str(epoch)
+        for batch in training_batches:
+            optimizer.zero_grad()
+            if count%10 == 0:
+                print(count)
+                print "average loss: " + str((total_loss/float(count)))
+                print("time for 10 batches: " + str(datetime.now() - time_begin))
+                time_begin = datetime.now()
+            titles, bodies, triples = batch
+            title_length, title_num_questions = titles.shape
+            body_length, body_num_questions = bodies.shape
+            title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
+            
+            # title
+            title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+            title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
+            # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
 
-        title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
-              autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
-        # title_hidden = (autograd.Variable(torch.zeros(1, title_length, args.hidden_size)),
-        #       autograd.Variable(torch.zeros((1, title_length, args.hidden_size))))
+            title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
+                  autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
+            # title_hidden = (autograd.Variable(torch.zeros(1, title_length, args.hidden_size)),
+            #       autograd.Variable(torch.zeros((1, title_length, args.hidden_size))))
 
-        title_out, title_hidden = lstm(title_inputs, title_hidden)
+            title_out, title_hidden = lstm(title_inputs, title_hidden)
 
-        # average all words of each question from title_out
-        # title_out (max sequence length) x (batch size) x (hidden size)
-        average_title_out = average_questions(title_out, titles, padding_id)
+            # average all words of each question from title_out
+            # title_out (max sequence length) x (batch size) x (hidden size)
+            average_title_out = average_questions(title_out, titles, padding_id)
 
-        # body
-        body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
-        body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
-        # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
+            # body
+            body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+            body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+            # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
 
-        body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
-              autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
-        # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
-        #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
-        
-        body_out, body_hidden = lstm(body_inputs, body_hidden)
+            body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
+                  autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
+            # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
+            #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
+            
+            body_out, body_hidden = lstm(body_inputs, body_hidden)
 
-        average_body_out = average_questions(body_out, bodies, padding_id)
-        count+=1
+            average_body_out = average_questions(body_out, bodies, padding_id)
+            count+=1
 
-        # average body and title
-        # representations of the questions as found by the LSTM
-        hidden = (average_title_out + average_body_out) * 0.5
+            # average body and title
+            # representations of the questions as found by the LSTM
+            hidden = (average_title_out + average_body_out) * 0.5
 
-        triples_vectors = hidden[torch.LongTensor(triples.ravel())]
-        triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
+            triples_vectors = hidden[torch.LongTensor(triples.ravel())]
+            triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
 
-        query = triples_vectors[:, 0, :].unsqueeze(1)
-        examples = triples_vectors[:, 1:, :]
+            query = triples_vectors[:, 0, :].unsqueeze(1)
+            examples = triples_vectors[:, 1:, :]
 
-        cos_similarity = F.cosine_similarity(query, examples, dim=2)
-        # print "training"
-        # print cos_similarity.size()
+            cos_similarity = F.cosine_similarity(query, examples, dim=2)
+            # print "training"
+            # print cos_similarity.size()
 
-        targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor))
+            targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor))
 
-        # outputs a Variable
-        # By default, the losses are averaged over observations for each minibatch.
-        loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3)
-        total_loss += loss.cpu().data.numpy()[0]
-        loss.backward()
-        print "average loss: " + str((total_loss/float(count)))
+            # outputs a Variable
+            # By default, the losses are averaged over observations for each minibatch.
+            loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3)
+            total_loss += loss.cpu().data.numpy()[0]
+            loss.backward()
+            #print "average loss: " + str((total_loss/float(count)))
 
-        optimizer.step() 
+            optimizer.step() 
 
-    evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
+        evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
 
 def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
     print "starting evaluation"
@@ -107,6 +118,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
     val_batches = corpus.create_batches(ids_corpus, val_data, args.batch_size, padding_id)
     count = 0
     similarities = np.array([])
+    print len(val_batches)
     for batch in val_batches:
         if count % 10 == 0:
             print count
@@ -159,7 +171,11 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
         else:
             # print similarities.shape
             # print positive_similarity.shape
-            similarities = np.concatenate((similarities, positive_similarity), axis=0)
+            try:
+                similarities = np.concatenate((similarities, positive_similarity), axis=0)
+            except ValueError:
+                print similarities.shape
+                print positive_similarity.shape
 
     evaluator = Evaluation(positive_similarity)
     print "precision at 1: " + str(evaluator.Precision(1))
