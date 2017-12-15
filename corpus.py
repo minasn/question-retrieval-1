@@ -159,6 +159,9 @@ def create_batches(ids_corpus, data, batch_size, padding_id):
     for data_point in xrange(N):
         i = data_order[data_point]
         pid, qids, qlabels = data[i]
+        # print "pid: " + str(pid)
+        # print "qids: " + str(qids)
+        # print "qlabels: " + str(qlabels)
         if pid not in ids_corpus: continue
         count += 1
         for id in [pid] + qids:
@@ -177,6 +180,7 @@ def create_batches(ids_corpus, data, batch_size, padding_id):
 
         #once we've accumulated enough data to create a batch, or we've reached end of data
         if count == batch_size or data_point == N-1:
+            # print "length of titles before creating batch: " + str(len(titles))
             titles, bodies = create_one_batch(titles, bodies, padding_id)
             triples = create_hinge_batch(triples)
             batches.append((titles, bodies, triples))
@@ -190,12 +194,15 @@ def create_batches(ids_corpus, data, batch_size, padding_id):
 
 def create_one_batch(titles, bodies, padding_id):
     max_title_len = max(1, max(len(x) for x in titles))
+    # print "max title length: " + str(max_title_len)
     max_body_len = max(1, max(len(x) for x in bodies))
     # pad data to padding id, which is max vocab length
     titles = (np.column_stack([ np.pad(x,(0,max_title_len-len(x)),'constant',
-                            constant_values=padding_id) for x in titles])).T
+                            constant_values=padding_id) for x in titles]))
+    # print "title shape: "
+    # print titles.shape
     bodies = (np.column_stack([ np.pad(x,(0,max_body_len-len(x)),'constant',
-                            constant_values=padding_id) for x in bodies])).T
+                            constant_values=padding_id) for x in bodies]))
     return titles, bodies
 
 def create_hinge_batch(triples):
