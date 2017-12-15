@@ -139,11 +139,16 @@ def main(args):
             # average body and title
             # representations of the questions as found by the LSTM
             hidden = (average_title_out + average_body_out) * 0.5
+            print "train"
+            print hidden.size()
+            print hidden
             if args.cuda:
             	triples_vectors = hidden[torch.LongTensor(triples.ravel()).cuda()]
             else: 
             	triples_vectors = hidden[torch.LongTensor(triples.ravel())]
+            print triples_vectors.size()
             triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
+            print triples_vectors.size()
 
             query = triples_vectors[:, 0, :].unsqueeze(1)
             examples = triples_vectors[:, 1:, :]
@@ -167,120 +172,112 @@ def main(args):
 
             optimizer.step() 
 
-        evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
+            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
 
 def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
     print "starting evaluation"
     val_data = corpus.read_annotations(args.test)
-    val_batches = corpus.create_batches(ids_corpus, val_data, args.batch_size, padding_id)
+    val_batches = corpus.create_eval_batches(ids_corpus, val_data, padding_id)
     count = 0
     similarities = np.array([])
-    print len(val_batches)
-    for batch in val_batches:
-        if count % 10 == 0:
-            print count
-        titles, bodies, triples = batch
-        title_length, title_num_questions = titles.shape
-        body_length, body_num_questions = bodies.shape
-        title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
-        
-        if args.model == 'lstm':
-            if args.cuda:
-                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
-                title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
-                # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
-
-                title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size).cuda()),
-                      autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size)).cuda()))
-                # title_hidden = (autograd.Variable(torch.zeros(1, title_length, args.hidden_size)),
-                #       autograd.Variable(torch.zeros((1, title_length, args.hidden_size))))
-            else:
-                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-                title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
-                # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
-
-                title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
-                      autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
-        else:
-            if args.cuda:
-                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
-                title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
-            else:
-                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-                title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
-
-        if args.model == 'lstm':
-            title_out, title_hidden = lstm(title_inputs, title_hidden)
-        else:
-            title_out = cnn(title_inputs)
-
-        average_title_out = average_questions(title_out, titles, padding_id)
-
-        # body
-        if args.model == 'lstm':
-            if args.cuda:
-                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
-                body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
-                # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
-
-                body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size).cuda()),
-                      autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size)).cuda()))
-                # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
-                #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
-            else:
-                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
-                body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
-                # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
-
-                body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
-                      autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
-                # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
-                #       aut
-        else:
-            if args.cuda:
-                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
-                body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
-            else:
-                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
-                body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
-        
-        if args.model == 'lstm':
-            body_out, body_hidden = lstm(body_inputs, body_hidden)
-        else:
-            body_out = cnn(body_inputs)
-
-        # average all words of each question from body_out
-        average_body_out = average_questions(body_out, bodies, padding_id)
-        count+=1
-
-        # average body and title
-        # representations of the questions as found by the LSTM
-        # 560 x 100
-        hidden = (average_title_out + average_body_out) * 0.5
-
+    titles, bodies, qlabels = val_batches[0]
+    title_length, title_num_questions = titles.shape
+    body_length, body_num_questions = bodies.shape
+    title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
+    
+    if args.model == 'lstm':
         if args.cuda:
-            triples_vectors = hidden[torch.LongTensor(triples.ravel()).cuda()]
-        else: 
-            triples_vectors = hidden[torch.LongTensor(triples.ravel())]
-        # triples_vectors = hidden[torch.LongTensor(triples.ravel())]
-        triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
+            title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
+            title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
+            # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
 
-        query = triples_vectors[:, 0, :].unsqueeze(1)
-        examples = triples_vectors[:, 1:, :]
-
-        cos_similarity = F.cosine_similarity(query, examples, dim=2)
-        cos_similarity_np = cos_similarity.data.numpy()
-        ranked_similarities = np.argsort(-1*cos_similarity_np, axis=1)
-        positive_similarity = (ranked_similarities == 0)
-        # print positive_similarity
-        if len(similarities) == 0:
-            similarities = positive_similarity
+            title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size).cuda()),
+                  autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size)).cuda()))
+            # title_hidden = (autograd.Variable(torch.zeros(1, title_length, args.hidden_size)),
+            #       autograd.Variable(torch.zeros((1, title_length, args.hidden_size))))
         else:
-            try:
-                similarities = np.concatenate((similarities, positive_similarity), axis=0)
-            except ValueError:
-                print similarities.shape
-                print positive_similarity.shape
+            title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+            title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
+            # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
+
+            title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
+                  autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
+    else:
+        if args.cuda:
+            title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
+            title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+        else:
+            title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+            title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+
+    if args.model == 'lstm':
+        title_out, title_hidden = lstm(title_inputs, title_hidden)
+    else:
+        title_out = cnn(title_inputs)
+
+    average_title_out = average_questions(title_out, titles, padding_id)
+
+    # body
+    if args.model == 'lstm':
+        if args.cuda:
+            body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
+            body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+            # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
+
+            body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size).cuda()),
+                  autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size)).cuda()))
+            # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
+            #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
+        else:
+            body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+            body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+            # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
+
+            body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
+                  autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
+            # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
+            #       aut
+    else:
+        if args.cuda:
+            body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
+            body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+        else:
+            body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+            body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+    
+    if args.model == 'lstm':
+        body_out, body_hidden = lstm(body_inputs, body_hidden)
+        #print body_out
+    else:
+        body_out = cnn(body_inputs)
+
+    # average all words of each question from body_out
+    average_body_out = average_questions(body_out, bodies, padding_id)
+
+    # average body and title
+    # representations of the questions as found by the LSTM
+    # 560 x 100
+    hidden = (average_title_out + average_body_out) * 0.5
+    print "dev"
+    print hidden.size()
+    print hidden
+
+    # if args.cuda:
+    #     triples_vectors = hidden[torch.LongTensor(triples.ravel()).cuda()]
+    # else: 
+    #     triples_vectors = hidden[torch.LongTensor(triples.ravel())]
+    # # triples_vectors = hidden[torch.LongTensor(triples.ravel())]
+    # triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
+    hidden = hidden.view(title_num_questions, 21, args.hidden_size)
+
+    query = hidden[:, 0, :].unsqueeze(1)
+    examples = hidden[:, 1:, :]
+
+    cos_similarity = F.cosine_similarity(query, examples, dim=2)
+    cos_similarity_np = cos_similarity.data.numpy()
+    ranked_similarities = np.argsort(-1*cos_similarity_np, axis=1)
+    positive_similarity = qlabels[ranked_similarities]
+    # print positive_similarity
 
     evaluator = Evaluation(positive_similarity)
     print "precision at 1: " + str(evaluator.Precision(1))
