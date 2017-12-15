@@ -35,10 +35,12 @@ def main(args):
         print "training lstm"
         lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
         optimizer = Adam(lstm.parameters())
+        lstm.cuda()
     else:
         print "training cnn"
         cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
         optimizer = Adam(cnn.parameters())
+        cnn.cuda()
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
     # lstm documentation: http://pytorch.org/docs/master/nn.html?highlight=nn%20lstm#torch.nn.LSTM
@@ -63,22 +65,29 @@ def main(args):
             
             # title
             if args.model == 'lstm':
-                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-                title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
-                # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
+                if args.cuda:
+                    title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
+                    title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
+                    # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
 
-                title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
-                      autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
-                if args.cuda:
-                    title_inputs = title_inputs.cuda()
-                    title_hidden = title_hidden.cuda()
-                # title_hidden = (autograd.Variable(torch.zeros(1, title_length, args.hidden_size)),
-                #       autograd.Variable(torch.zeros((1, title_length, args.hidden_size))))
+                    title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size).cuda()),
+                          autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size)).cuda()))
+                    # title_hidden = (autograd.Variable(torch.zeros(1, title_length, args.hidden_size)),
+                    #       autograd.Variable(torch.zeros((1, title_length, args.hidden_size))))
+                else:
+                    title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+                    title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
+                    # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
+
+                    title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
+                          autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
             else:
-                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-                title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
                 if args.cuda:
-                    title_inputs = title_inputs.cuda()
+                    title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
+                    title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+                else:
+                    title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+                    title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
 
             if args.model == 'lstm':
                 title_out, title_hidden = lstm(title_inputs, title_hidden)
@@ -91,22 +100,31 @@ def main(args):
 
             # body
             if args.model == 'lstm':
-                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
-                body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
-                # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
+                if args.cuda:
+                    body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
+                    body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+                    # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
 
-                body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
-                      autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
-                # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
-                #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
-                if args.cuda:
-                    body_inputs = body_inputs.cuda()
-                    body_hidden = body_hidden.cuda()
+                    body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size).cuda()),
+                          autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size)).cuda()))
+                    # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
+                    #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
+                else:
+                    body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+                    body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+                    # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
+
+                    body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
+                          autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
+                    # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
+                    #       aut
             else:
-                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
-                body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
                 if args.cuda:
-                    body_inputs = body_inputs.cuda()
+                    body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
+                    body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+                else:
+                    body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+                    body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
             
             if args.model == 'lstm':
                 body_out, body_hidden = lstm(body_inputs, body_hidden)
@@ -134,7 +152,10 @@ def main(args):
 
             # outputs a Variable
             # By default, the losses are averaged over observations for each minibatch.
-            loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3)
+            if args.cuda:
+                loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3).cuda()
+            else:
+                loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3)
             total_loss += loss.cpu().data.numpy()[0]
             loss.backward()
             #print "average loss: " + str((total_loss/float(count)))
