@@ -225,24 +225,24 @@ def main(args):
 
             optimizer.step() 
 
-            result_headers = ['Epoch', 'MAP', 'MRR', 'P@1', 'P@5']
-            with open(args.results_file, 'a') as evaluate_file:
-                writer = csv.writer(evaluate_file, dialect='excel')
-                writer.writerow(result_headers)
+        result_headers = ['Epoch', 'MAP', 'MRR', 'P@1', 'P@5']
+        with open(args.results_file, 'a') as evaluate_file:
+            writer = csv.writer(evaluate_file, dialect='excel')
+            writer.writerow(result_headers)
 
+        if args.model == 'lstm':
+            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm, epoch)
+        else:
+            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn, epoch)
+
+        if args.save_model:
+            # saving the model
             if args.model == 'lstm':
-                evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm, epoch)
+                print "Saving lstm model epoch " + str(epoch) + " to lstm_model" + str(new_model_num)
+                torch.save(lstm.state_dict(), "lstm_models/lstm_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
             else:
-                evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn, epoch)
-
-            if args.save_model:
-                # saving the model
-                if args.model == 'lstm':
-                    print "Saving lstm model epoch " + str(epoch) + " to lstm_model" + str(new_model_num)
-                    torch.save(lstm.state_dict(), "lstm_models/lstm_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
-                else:
-                    print "Saving cnn model epoch " + str(epoch) + " to cnn_model" + str(new_model_num)
-                    torch.save(cnn.state_dict(), "cnn_models/cnn_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
+                print "Saving cnn model epoch " + str(epoch) + " to cnn_model" + str(new_model_num)
+                torch.save(cnn.state_dict(), "cnn_models/cnn_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
 
 def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch):
     print "starting evaluation"
