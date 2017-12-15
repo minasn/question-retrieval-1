@@ -5,6 +5,7 @@ import corpus
 import numpy as np
 
 from scipy import spatial
+from evaluation import *
 
 import torch
 import torch.nn as nn
@@ -39,24 +40,13 @@ def main(args):
             print(count)
         titles, bodies, triples = batch
         title_length, title_num_questions = titles.shape
-        # print "title_length: " + str(title_length)
-        # print "title_num_questions: " + str(title_num_questions)
         body_length, body_num_questions = bodies.shape
-        # print "title length: " + str(title_length)
-        # print "title num questions: " + str(title_num_questions)
-        # print "body length: " + str(body_length)
-        # print "body_num_questions: " + str(body_num_questions)
         title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
         
         # title
         title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
         title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
         # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
-
-        # checking title_inputs dimensions
-        # print len(title_inputs)
-        # print len(title_inputs[0])
-        # print len(title_inputs[0][0])
 
         title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
               autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
@@ -65,34 +55,14 @@ def main(args):
 
         title_out, title_hidden = lstm(title_inputs, title_hidden)
 
-        # print "title_out dimensions"
-        # print title_out.size()
-        # print title_out
-
-        # print(len(title_out))
-        # print(len(title_out[0]))
-        # print(len(title_out[0][0]))
-
         # average all words of each question from title_out
         # title_out (max sequence length) x (batch size) x (hidden size)
         average_title_out = average_questions(title_out, titles, padding_id)
-        # print "avg title out "
-        # print type(average_title_out)
-        # print len(average_title_out)
-        # print average_title_out.size()
-        # print "\n"
 
         # body
         body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
         body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
         # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
-
-
-        # checking body_inputs dimensions
-        # print "body_inputs dimensions"
-        # print len(body_inputs)
-        # print len(body_inputs[0])
-        # print len(body_inputs[0][0])
 
         body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
               autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
@@ -101,71 +71,101 @@ def main(args):
         
         body_out, body_hidden = lstm(body_inputs, body_hidden)
 
-        # print "body out"
-        # print(len(body_out))
-        # print(len(body_out[0]))
-        # print(len(body_out[0][0]))
+        average_body_out = average_questions(body_out, bodies, padding_id)
+        count+=1
+
+        # average body and title
+        # representations of the questions as found by the LSTM
+        hidden = (average_title_out + average_body_out) * 0.5
+
+        triples_vectors = hidden[torch.LongTensor(triples.ravel())]
+        triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
+
+        query = triples_vectors[:, 0, :].unsqueeze(1)
+        examples = triples_vectors[:, 1:, :]
+
+        cos_similarity = F.cosine_similarity(query, examples, dim=2)
+        # print "training"
+        # print cos_similarity.size()
+
+        targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor))
+
+        # outputs a Variable
+        # By default, the losses are averaged over observations for each minibatch.
+        loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3)
+        total_loss += loss.cpu().data.numpy()[0]
+        loss.backward()
+        print "average loss: " + str((total_loss/float(count)))
+
+        optimizer.step() 
+
+    evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
+
+def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
+    print "starting evaluation"
+    val_data = corpus.read_annotations(args.test)
+    val_batches = corpus.create_batches(ids_corpus, val_data, args.batch_size, padding_id)
+    count = 0
+    similarities = np.array([])
+    for batch in val_batches:
+        if count % 10 == 0:
+            print count
+        titles, bodies, triples = batch
+        title_length, title_num_questions = titles.shape
+        body_length, body_num_questions = bodies.shape
+        title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
+        
+        # title
+        title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+        title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
+
+        title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
+              autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
+        title_out, title_hidden = lstm(title_inputs, title_hidden)
+    
+        average_title_out = average_questions(title_out, titles, padding_id)
+
+        # body
+        body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+        body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+
+        body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
+              autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
+        
+        body_out, body_hidden = lstm(body_inputs, body_hidden)
 
         # average all words of each question from body_out
-        # body_out (max sequence length) x (batch size) x (hidden size)
         average_body_out = average_questions(body_out, bodies, padding_id)
-        #hidden_states.append(average_body_out)
-        # print triples
-        # print average_title_out
-        # print average_body_out
-        # print "avg body out "
-        # print len(average_body_out)
-        # print "\n"
         count+=1
 
         # average body and title
         # representations of the questions as found by the LSTM
         # 560 x 100
         hidden = (average_title_out + average_body_out) * 0.5
-        print hidden
-        print type(hidden)
-        print hidden.size
-
-        # triples_vectors is a matrix of the vectors representing the questions
-        # as indicated by the indices in triples 
-        # triples_vectors = np.vectorize(lambda x: hidden[x])(triples)
-        # print "num things in batch: " + str(len(triples))
-        # print triples_vectors.shape
-        # print triples_vectors
-
-        # print hidden
-        # print triples.ravel()
-        # print triples.ravel().shape
 
         triples_vectors = hidden[torch.LongTensor(triples.ravel())]
         triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
-
-        # print triples_vectors
 
         query = triples_vectors[:, 0, :].unsqueeze(1)
         examples = triples_vectors[:, 1:, :]
 
         cos_similarity = F.cosine_similarity(query, examples, dim=2)
+        cos_similarity_np = cos_similarity.data.numpy()
+        ranked_similarities = np.argsort(-1*cos_similarity_np, axis=1)
+        positive_similarity = (ranked_similarities == 0)
+        # print positive_similarity
+        if len(similarities) == 0:
+            similarities = positive_similarity
+        else:
+            # print similarities.shape
+            # print positive_similarity.shape
+            similarities = np.concatenate((similarities, positive_similarity), axis=0)
 
-        # input matrix to the loss funcion of dimensions (questions x 21)
-        # questions is the batch size
-        # s(0, 1), s(0, 2), ..., s(0, 21)
-        # inputs = np.apply_along_axis(cos_sim_func, 0, triples_vectors)
-        # print "inputs"
-        # print inputs.shape
-        # # does this need be (21, 1)? to be a column of 0's or just (21)
-        targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor))
-
-        # outputs a Variable
-        # By default, the losses are averaged over observations for each minibatch.
-        loss = F.multi_margin_loss(cos_similarity, targets)
-        total_loss += loss.cpu().data.numpy()[0]
-        # print "did loss function"
-        # loss = loss_function(inputs, targets)
-        loss.backward()
-        print "average loss: " + str((total_loss/float(count)))
-
-        optimizer.step() 
+    evaluator = Evaluation(positive_similarity)
+    print "precision at 1: " + str(evaluator.Precision(1))
+    print "precision at 5: " + str(evaluator.Precision(5))
+    print "MAP: " + str(evaluator.MAP())
+    print "MRR: " + str(evaluator.MRR())
 
 def cos_sim_func(triples_vectors):
     """Create an array of the cosine similarity scores of each vector

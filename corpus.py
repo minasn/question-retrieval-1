@@ -180,8 +180,8 @@ def create_batches(ids_corpus, data, batch_size, padding_id):
 
         #once we've accumulated enough data to create a batch, or we've reached end of data
         if count == batch_size or data_point == N-1:
-            print "count: " + str(count)
-            print "titles shape b4 creating batch = " + str(len(titles)) + ", " + str(max(1, max(len(x) for x in titles)))
+            # print "count: " + str(count)
+            # print "titles shape b4 creating batch = " + str(len(titles)) + ", " + str(max(1, max(len(x) for x in titles)))
             # print "length of titles before creating batch: " + str(len(titles))
             titles, bodies = create_one_batch(titles, bodies, padding_id)
 
