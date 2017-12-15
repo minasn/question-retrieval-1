@@ -15,6 +15,8 @@ import torch.nn.functional as F
 from torch.optim import Adam
 import torch.autograd as autograd
 
+import os
+
 def main(args):
     print args.model
     time1 = datetime.now()
@@ -31,22 +33,65 @@ def main(args):
     time2 = datetime.now()
     print "time to preprocess: " + str(time2-time1)
     
-    if args.model == 'lstm':
-        print "training lstm"
-        lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
-        optimizer = Adam(lstm.parameters())
-        if args.cuda:
-            lstm.cuda()
+    if args.load_model:
+        if args.model == 'lstm':
+            print("loading " + args.load_model)
+            lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
+            lstm.load_state_dict(torch.load(args.load_model))
+            optimizer = Adam(lstm.parameters())
+            if args.cuda:
+                lstm.cuda()
+        else:
+            print("loading " + args.load_model)
+            cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+            cnn.load_state_dict(torch.load(args.load_model))
+            optimizer = Adam(cnn.parameters())
+            if args.cuda:
+                cnn.cuda()
     else:
-        print "training cnn"
-        cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
-        optimizer = Adam(cnn.parameters())
-        if args.cuda:
-            cnn.cuda()
+        if args.model == 'lstm':
+            print "training lstm"
+            lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
+            optimizer = Adam(lstm.parameters())
+            if args.cuda:
+                lstm.cuda()
+        else:
+            print "training cnn"
+            cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+            optimizer = Adam(cnn.parameters())
+            if args.cuda:
+                cnn.cuda()
+
+    if args.save_model:
+        if args.model == 'lstm':
+            lstm_model_nums = []
+            for d in os.listdir("lstm_models"):
+                if "lstm_model" in d:
+                    num = int(d[len("lstm_models")-1:])
+                    lstm_model_nums.append(num)
+            if len(lstm_model_nums) > 0:
+                new_model_num = max(lstm_model_nums) + 1
+            else:
+                new_model_num = 0
+            print("creating new model " + "lstm_models/lstm_model" + str(new_model_num))
+            os.makedirs("lstm_models/lstm_model" + str(new_model_num))
+        else:
+            cnn_model_nums = []
+            for d in os.listdir("cnn_models"):
+                if "cnn_model" in d:
+                    num = int(d[len("cnn_models")-1:])
+                    cnn_model_nums.append(num)
+            if len(cnn_model_nums) > 0:
+                new_model_num = max(cnn_model_nums) + 1
+            else:
+                new_model_num = 0
+            print("creating new model " + "cnn_models/cnn_model" + str(new_model_num))
+            os.makedirs("lstm_models/lstm_model" + str(new_model_num))
+
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
     # lstm documentation: http://pytorch.org/docs/master/nn.html?highlight=nn%20lstm#torch.nn.LSTM
-    # 
+    
     count = 1
     hidden_states = []
     total_loss = 0.0
@@ -145,7 +190,7 @@ def main(args):
             # print hidden.size()
             # print hidden
             if args.cuda:
-            	triples_vectors = hidden[torch.LongTensor(triples.ravel()).cuda()]
+                triples_vectors = hidden[torch.LongTensor(triples.ravel()).cuda()]
             else: 
             	triples_vectors = hidden[torch.LongTensor(triples.ravel())]
             # print triples_vectors.size()
@@ -164,7 +209,7 @@ def main(args):
             # print "training"
             # print cos_similarity.size()
             if args.cuda:
-            	targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor).cuda())
+                targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor).cuda())
             else:
                 targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor))
             # outputs a Variable
@@ -183,6 +228,15 @@ def main(args):
             evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
         else:
             evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn)
+
+        if args.save_model:
+            # saving the model
+            if args.model == 'lstm':
+                print "Saving lstm model epoch " + str(epoch) + " to lstm_model" + str(new_model_num)
+                torch.save(lstm.state_dict(), "lstm_models/lstm_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
+            else:
+                print "Saving cnn model epoch " + str(epoch) + " to cnn_model" + str(new_model_num)
+                torch.save(cnn.state_dict(), "cnn_models/cnn_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
 
 def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
     print "starting evaluation"
@@ -284,7 +338,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
         # print examples
 
         cos_similarity = F.cosine_similarity(query, examples, dim=1)
-        cos_similarity_np = cos_similarity.data.numpy()
+        cos_similarity_np = cos_similarity.cpu().data.numpy()
         # print cos_similarity_np
         # print cos_similarity_np.shape
         ranked_similarities = np.argsort(-1*cos_similarity_np)
@@ -310,9 +364,9 @@ def average_questions(hidden, ids, padding_id, eps=1e-10):
     """
     # sequence (title or body) x questions x 1
     if args.cuda:
-    	mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).cuda().unsqueeze(2))
+        mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).cuda().unsqueeze(2))
     else:
-    	mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).unsqueeze(2))
+        mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).unsqueeze(2))
     # questions x hidden (=200)
     masked_sum = torch.sum(mask * hidden, dim=0)
 
@@ -358,7 +412,15 @@ if __name__ == "__main__":
             type = int,
             default = 0
         )
-    
+    argparser.add_argument("--load_model",
+            type = str,
+            default = ""
+        )
+    argparser.add_argument("--save_model", 
+            type = int,
+            default = 1
+        )
+
     args = argparser.parse_args()
     main(args)
     
