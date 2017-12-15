@@ -69,12 +69,17 @@ def main(args):
 
                 title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
                       autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
+                if args.cuda:
+                    title_inputs = title_inputs.cuda()
+                    title_hidden = title_hidden.cuda()
                 # title_hidden = (autograd.Variable(torch.zeros(1, title_length, args.hidden_size)),
                 #       autograd.Variable(torch.zeros((1, title_length, args.hidden_size))))
             else:
                 title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
                 title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
-            
+                if args.cuda:
+                    title_inputs = title_inputs.cuda()
+
             if args.model == 'lstm':
                 title_out, title_hidden = lstm(title_inputs, title_hidden)
             else:
@@ -94,9 +99,14 @@ def main(args):
                       autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
                 # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
                 #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
+                if args.cuda:
+                    body_inputs = body_inputs.cuda()
+                    body_hidden = body_hidden.cuda()
             else:
                 body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
                 body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+                if args.cuda:
+                    body_inputs = body_inputs.cuda()
             
             if args.model == 'lstm':
                 body_out, body_hidden = lstm(body_inputs, body_hidden)
@@ -265,6 +275,10 @@ if __name__ == "__main__":
     argparser.add_argument("--model",
             type = str,
             default = "lstm"
+        )
+    argparser.add_argument("--cuda",
+            type = int,
+            default = 0
         )
     
     args = argparser.parse_args()
