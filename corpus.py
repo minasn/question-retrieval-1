@@ -195,6 +195,19 @@ def create_batches(ids_corpus, data, batch_size, padding_id):
     title1 = batches[0][0]
     return batches
 
+def create_eval_batches(ids_corpus, data, padding_id):
+    lst = [ ]
+    for pid, qids, qlabels in data:
+        titles = [ ]
+        bodies = [ ]
+        for id in [pid]+qids:
+            t, b = ids_corpus[id]
+            titles.append(t)
+            bodies.append(b)
+        titles, bodies = create_one_batch(titles, bodies, padding_id)
+        lst.append((titles, bodies, np.array(qlabels, dtype="int32")))
+    return lst
+
 def create_one_batch(titles, bodies, padding_id):
     max_title_len = max(1, max(len(x) for x in titles))
     # print "max title length: " + str(max_title_len)

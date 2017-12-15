@@ -35,12 +35,14 @@ def main(args):
         print "training lstm"
         lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
         optimizer = Adam(lstm.parameters())
-        lstm.cuda()
+        if args.cuda:
+            lstm.cuda()
     else:
         print "training cnn"
         cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
         optimizer = Adam(cnn.parameters())
-        cnn.cuda()
+        if args.cuda:
+            cnn.cuda()
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
     # lstm documentation: http://pytorch.org/docs/master/nn.html?highlight=nn%20lstm#torch.nn.LSTM
@@ -182,8 +184,6 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
         body_length, body_num_questions = bodies.shape
         title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
         
-        # title
-
         if args.model == 'lstm':
             if args.cuda:
                 title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
@@ -208,12 +208,12 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
             else:
                 title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
                 title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
-        
+
         if args.model == 'lstm':
             title_out, title_hidden = lstm(title_inputs, title_hidden)
         else:
             title_out = cnn(title_inputs)
-    
+
         average_title_out = average_questions(title_out, titles, padding_id)
 
         # body
@@ -221,15 +221,21 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
             if args.cuda:
                 body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
                 body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+                # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
 
                 body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size).cuda()),
                       autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size)).cuda()))
+                # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
+                #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
             else:
                 body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
                 body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+                # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
 
                 body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
                       autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
+                # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
+                #       aut
         else:
             if args.cuda:
                 body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
@@ -241,7 +247,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
         if args.model == 'lstm':
             body_out, body_hidden = lstm(body_inputs, body_hidden)
         else:
-            body_out = cnn(body_inputs, body_hidden)
+            body_out = cnn(body_inputs)
 
         # average all words of each question from body_out
         average_body_out = average_questions(body_out, bodies, padding_id)
@@ -256,6 +262,8 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
             triples_vectors = hidden[torch.LongTensor(triples.ravel()).cuda()]
         else: 
             triples_vectors = hidden[torch.LongTensor(triples.ravel())]
+        # triples_vectors = hidden[torch.LongTensor(triples.ravel())]
+        triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
 
         query = triples_vectors[:, 0, :].unsqueeze(1)
         examples = triples_vectors[:, 1:, :]
@@ -268,8 +276,6 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
         if len(similarities) == 0:
             similarities = positive_similarity
         else:
-            # print similarities.shape
-            # print positive_similarity.shape
             try:
                 similarities = np.concatenate((similarities, positive_similarity), axis=0)
             except ValueError:
