@@ -3,6 +3,7 @@ import argparse
 import corpus
 
 import numpy as np
+import csv
 
 from scipy import spatial
 from evaluation import *
@@ -86,7 +87,7 @@ def main(args):
             else:
                 new_model_num = 0
             print("creating new model " + "cnn_models/cnn_model" + str(new_model_num))
-            os.makedirs("lstm_models/lstm_model" + str(new_model_num))
+            os.makedirs("cnn_models/cnn_model" + str(new_model_num))
 
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
@@ -224,21 +225,26 @@ def main(args):
 
             optimizer.step() 
 
-        if args.model == 'lstm':
-            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
-        else:
-            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn)
+            result_headers = ['Epoch', 'MAP', 'MRR', 'P@1', 'P@5']
+            with open(args.results_file, 'a') as evaluate_file:
+                writer = csv.writer(evaluate_file, dialect='excel')
+                writer.writerow(result_headers)
 
-        if args.save_model:
-            # saving the model
             if args.model == 'lstm':
-                print "Saving lstm model epoch " + str(epoch) + " to lstm_model" + str(new_model_num)
-                torch.save(lstm.state_dict(), "lstm_models/lstm_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
+                evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm, epoch)
             else:
-                print "Saving cnn model epoch " + str(epoch) + " to cnn_model" + str(new_model_num)
-                torch.save(cnn.state_dict(), "cnn_models/cnn_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
+                evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn, epoch)
 
-def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
+            if args.save_model:
+                # saving the model
+                if args.model == 'lstm':
+                    print "Saving lstm model epoch " + str(epoch) + " to lstm_model" + str(new_model_num)
+                    torch.save(lstm.state_dict(), "lstm_models/lstm_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
+                else:
+                    print "Saving cnn model epoch " + str(epoch) + " to cnn_model" + str(new_model_num)
+                    torch.save(cnn.state_dict(), "cnn_models/cnn_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
+
+def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch):
     print "starting evaluation"
     val_data = corpus.read_annotations(args.test)
     print "number of lines in test data: " + str(len(val_data))
@@ -346,10 +352,15 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
         similarities.append(positive_similarity)
 
     evaluator = Evaluation(similarities)
+    metrics = [epoch, evaluator.MAP(), evaluator.MRR(), str(evaluator.Precision(1)), str(evaluator.Precision(5))]
     print "precision at 1: " + str(evaluator.Precision(1))
     print "precision at 5: " + str(evaluator.Precision(5))
     print "MAP: " + str(evaluator.MAP())
     print "MRR: " + str(evaluator.MRR())
+
+    with open(args.results_file, 'a') as evaluate_file:
+        writer = csv.writer(evaluate_file, dialect='excel')
+        writer.writerow(metrics)
 
 def cos_sim_func(triples_vectors):
     """Create an array of the cosine similarity scores of each vector
@@ -419,6 +430,9 @@ if __name__ == "__main__":
     argparser.add_argument("--save_model", 
             type = int,
             default = 1
+        )
+    argparser.add_argument("--results_file",
+            type = str
         )
 
     args = argparser.parse_args()
