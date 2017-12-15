@@ -152,13 +152,13 @@ def main(args):
             if args.cuda:
             	targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor).cuda())
             else:
-            	targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor)
+                targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor))
             # outputs a Variable
             # By default, the losses are averaged over observations for each minibatch
             if args.cuda:
-            	loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3).cuda()
+                loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3).cuda()
             else:
-                loss = F.multi_margin_loss(cos_similarity, targets, margin=0.3).cuda()
+                loss = F.multi_margin_loss(cos_similarity, targets, margin=0.3)
             total_loss += loss.cpu().data.numpy()[0]
             loss.backward()
             #print "average loss: " + str((total_loss/float(count)))
@@ -261,7 +261,6 @@ def average_questions(hidden, ids, padding_id, eps=1e-10):
     	mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).cuda().unsqueeze(2))
     else:
     	mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).unsqueeze(2))
-    else:
     # questions x hidden (=200)
     masked_sum = torch.sum(mask * hidden, dim=0)
 
