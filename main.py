@@ -95,6 +95,7 @@ def main(args):
                 title_out, title_hidden = lstm(title_inputs, title_hidden)
             else:
                 title_out = cnn(title_inputs)
+                title_out = title_out.view(title_length, title_num_questions, -1)
 
             # average all words of each question from title_out
             # title_out (max sequence length) x (batch size) x (hidden size)
@@ -132,6 +133,7 @@ def main(args):
                 body_out, body_hidden = lstm(body_inputs, body_hidden)
             else:
                 body_out = cnn(body_inputs)
+                body_out = body_out.view(body_length, body_num_questions, -1)
 
             average_body_out = average_questions(body_out, bodies, padding_id)
             count+=1
@@ -139,24 +141,24 @@ def main(args):
             # average body and title
             # representations of the questions as found by the LSTM
             hidden = (average_title_out + average_body_out) * 0.5
-            print "train"
-            print hidden.size()
-            print hidden
+            # print "train"
+            # print hidden.size()
+            # print hidden
             if args.cuda:
             	triples_vectors = hidden[torch.LongTensor(triples.ravel()).cuda()]
             else: 
             	triples_vectors = hidden[torch.LongTensor(triples.ravel())]
-            print triples_vectors.size()
+            # print triples_vectors.size()
             triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
-            print triples_vectors.size()
+            # print triples_vectors.size()
 
             query = triples_vectors[:, 0, :].unsqueeze(1)
             examples = triples_vectors[:, 1:, :]
 
-            print query.size()
-            print query
-            print examples.size()
-            print examples
+            # print query.size()
+            # print query
+            # print examples.size()
+            # print examples
 
             cos_similarity = F.cosine_similarity(query, examples, dim=2)
             # print "training"
@@ -177,15 +179,24 @@ def main(args):
 
             optimizer.step() 
 
-        evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
+        if args.model == 'lstm':
+            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
+        else:
+            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn)
 
-def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
+def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
     print "starting evaluation"
     val_data = corpus.read_annotations(args.test)
     print "number of lines in test data: " + str(len(val_data))
     val_batches = corpus.create_eval_batches(ids_corpus, val_data, padding_id)
     count = 0
     similarities = []
+
+    if args.model == 'lstm':
+        lstm = model
+    else:
+        cnn = model
+
     for batch in val_batches:
         titles, bodies, qlabels = batch
         # print "Titles"
@@ -221,6 +232,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
             title_out, title_hidden = lstm(title_inputs, title_hidden)
         else:
             title_out = cnn(title_inputs)
+            title_out = title_out.view(title_length, title_num_questions, -1)
 
         average_title_out = average_questions(title_out, titles, padding_id)
 
@@ -250,6 +262,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
             body_out, body_hidden = lstm(body_inputs, body_hidden)
         else:
             body_out = cnn(body_inputs)
+            body_out = body_out.view(body_length, body_num_questions, -1)
 
         # average all words of each question from body_out
         average_body_out = average_questions(body_out, bodies, padding_id)
