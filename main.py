@@ -9,6 +9,7 @@ from scipy import spatial
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.optim import Adam
 import torch.autograd as autograd
 
 def main(args):
@@ -23,6 +24,7 @@ def main(args):
     print("got batches")
     
     lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
+    optimizer = Adam(lstm.parameters())
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
     # lstm documentation: http://pytorch.org/docs/master/nn.html?highlight=nn%20lstm#torch.nn.LSTM
@@ -30,11 +32,16 @@ def main(args):
     count = 1
     hidden_states = []
     for batch in training_batches:
+        optimizer.zero_grad()
         if count%10 == 0:
             print(count)
         titles, bodies, triples = batch
         title_length, title_num_questions = titles.shape
         body_length, body_num_questions = bodies.shape
+        # print "title length: " + str(title_length)
+        # print "title num questions: " + str(title_num_questions)
+        # print "body length: " + str(body_length)
+        # print "body_num_questions: " + str(body_num_questions)
         title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
         
         # title
@@ -42,6 +49,7 @@ def main(args):
         title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
 
         # checking title_inputs dimensions
+        # print "title_inputs dimensions"
         # print len(title_inputs)
         # print len(title_inputs[0])
         # print len(title_inputs[0][0])
@@ -51,6 +59,7 @@ def main(args):
 
         title_out, title_hidden = lstm(title_inputs, title_hidden)
 
+        # print "title_out dimensions"
         # print(len(title_out))
         # print(len(title_out[0]))
         # print(len(title_out[0][0]))
@@ -66,11 +75,18 @@ def main(args):
         body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
         body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
 
+        # checking body_inputs dimensions
+        # print "body_inputs dimensions"
+        # print len(body_inputs)
+        # print len(body_inputs[0])
+        # print len(body_inputs[0][0])
+
         body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
               autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
         
         body_out, body_hidden = lstm(body_inputs, body_hidden)
 
+        # print "body out"
         # print(len(body_out))
         # print(len(body_out[0]))
         # print(len(body_out[0][0]))
@@ -78,7 +94,10 @@ def main(args):
         # average all words of each question from body_out
         # body_out (max sequence length) x (batch size) x (hidden size)
         average_body_out = average_questions(body_out, bodies, padding_id)
-        hidden_states.append(average_body_out)
+        #hidden_states.append(average_body_out)
+        # print triples
+        # print average_title_out
+        # print average_body_out
         # print "avg body out "
         # print len(average_body_out)
         # print "\n"
@@ -87,6 +106,9 @@ def main(args):
         # average body and title
         # representations of the questions as found by the LSTM
         hidden = (average_title_out + average_body_out) * 0.5
+        print hidden
+        print type(hidden)
+        print hidden.size
 
         # triples_vectors is a matrix of the vectors representing the questions
         # as indicated by the indices in triples 
