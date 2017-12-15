@@ -205,10 +205,10 @@ def create_one_batch(titles, bodies, padding_id):
     # pad data to padding id, which is max vocab length
     titles = (np.column_stack([ np.pad(x,(0,max_title_len-len(x)),'constant',
                             constant_values=padding_id) for x in titles]))
-    print "create one batch: titles shape, bodies shape"
-    print titles.shape
-    bodies = (np.column_stack([ np.pad(x,(0,max_body_len-len(x)),'constant',
-                            constant_values=padding_id) for x in bodies]))
+    # print "create one batch: titles shape, bodies shape"
+    # print titles.shape
+    # bodies = (np.column_stack([ np.pad(x,(0,max_body_len-len(x)),'constant',
+                            # constant_values=padding_id) for x in bodies]))
     # print bodies.shape
     # print titles
     # print "title shape: "

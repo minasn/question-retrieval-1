@@ -53,12 +53,7 @@ def main(args):
         title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
         # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
 
-<<<<<<< HEAD
         # checking title_inputs dimensions
-        # print "title_inputs dimensions"
-=======
-        # print "checking title_inputs dimensions"
->>>>>>> a26a2d2086666a63811a2aa910caeaa8e1874f75
         # print len(title_inputs)
         # print len(title_inputs[0])
         # print len(title_inputs[0][0])
@@ -70,13 +65,10 @@ def main(args):
 
         title_out, title_hidden = lstm(title_inputs, title_hidden)
 
-<<<<<<< HEAD
         # print "title_out dimensions"
-=======
         # print title_out.size()
         # print title_out
 
->>>>>>> a26a2d2086666a63811a2aa910caeaa8e1874f75
         # print(len(title_out))
         # print(len(title_out[0]))
         # print(len(title_out[0][0]))
