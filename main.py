@@ -1,4 +1,5 @@
 import sys
+import os
 import argparse
 import corpus
 
@@ -19,7 +20,6 @@ import torch.autograd as autograd
 import os
 
 def main(args):
-    print args.model
     time1 = datetime.now()
     raw_corpus = corpus.read_corpus(args.corpus)
     list_words, vocab_map, embeddings, padding_id = corpus.load_embeddings(corpus.load_embedding_iterator(args.embeddings))
@@ -226,7 +226,7 @@ def main(args):
             optimizer.step() 
 
         result_headers = ['Epoch', 'MAP', 'MRR', 'P@1', 'P@5']
-        with open(args.results_file, 'a') as evaluate_file:
+        with open(os.path.join(sys.path[0], args.results_file), 'a') as evaluate_file:
             writer = csv.writer(evaluate_file, dialect='excel')
             writer.writerow(result_headers)
 
@@ -358,7 +358,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch
     print "MAP: " + str(evaluator.MAP())
     print "MRR: " + str(evaluator.MRR())
 
-    with open(args.results_file, 'a') as evaluate_file:
+    with open(os.path.join(sys.path[0],args.results_file), 'a') as evaluate_file:
         writer = csv.writer(evaluate_file, dialect='excel')
         writer.writerow(metrics)
 
