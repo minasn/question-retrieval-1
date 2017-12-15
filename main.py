@@ -16,6 +16,7 @@ from torch.optim import Adam
 import torch.autograd as autograd
 
 def main(args):
+    print args.model
     time1 = datetime.now()
     raw_corpus = corpus.read_corpus(args.corpus)
     list_words, vocab_map, embeddings, padding_id = corpus.load_embeddings(corpus.load_embedding_iterator(args.embeddings))
@@ -30,8 +31,14 @@ def main(args):
     time2 = datetime.now()
     print "time to preprocess: " + str(time2-time1)
     
-    lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
-    optimizer = Adam(lstm.parameters())
+    if args.model == 'lstm':
+        print "training lstm"
+        lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
+        optimizer = Adam(lstm.parameters())
+    else:
+        print "training cnn"
+        cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+        optimizer = Adam(cnn.parameters())
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
     # lstm documentation: http://pytorch.org/docs/master/nn.html?highlight=nn%20lstm#torch.nn.LSTM
@@ -55,32 +62,46 @@ def main(args):
             title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
             
             # title
-            title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-            title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
-            # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
+            if args.model == 'lstm':
+                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+                title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
+                # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
 
-            title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
-                  autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
-            # title_hidden = (autograd.Variable(torch.zeros(1, title_length, args.hidden_size)),
-            #       autograd.Variable(torch.zeros((1, title_length, args.hidden_size))))
-
-            title_out, title_hidden = lstm(title_inputs, title_hidden)
+                title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
+                      autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
+                # title_hidden = (autograd.Variable(torch.zeros(1, title_length, args.hidden_size)),
+                #       autograd.Variable(torch.zeros((1, title_length, args.hidden_size))))
+            else:
+                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+                title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+            
+            if args.model == 'lstm':
+                title_out, title_hidden = lstm(title_inputs, title_hidden)
+            else:
+                title_out = cnn(title_inputs)
 
             # average all words of each question from title_out
             # title_out (max sequence length) x (batch size) x (hidden size)
             average_title_out = average_questions(title_out, titles, padding_id)
 
             # body
-            body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
-            body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
-            # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
+            if args.model == 'lstm':
+                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+                body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+                # body_inputs = torch.cat(body_inputs).view(body_num_questions, body_length, -1)
 
-            body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
-                  autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
-            # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
-            #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
+                body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
+                      autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
+                # body_hidden = (autograd.Variable(torch.zeros(1, body_length, args.hidden_size)),
+                #       autograd.Variable(torch.zeros((1, body_length, args.hidden_size))))
+            else:
+                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+                body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
             
-            body_out, body_hidden = lstm(body_inputs, body_hidden)
+            if args.model == 'lstm':
+                body_out, body_hidden = lstm(body_inputs, body_hidden)
+            else:
+                body_out = cnn(body_inputs)
 
             average_body_out = average_questions(body_out, bodies, padding_id)
             count+=1
@@ -133,7 +154,11 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
 
         title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
               autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
-        title_out, title_hidden = lstm(title_inputs, title_hidden)
+
+        if args.model == 'lstm':
+            title_out, title_hidden = lstm(title_inputs, title_hidden)
+        else:
+            title_out = cnn(title_inputs)
     
         average_title_out = average_questions(title_out, titles, padding_id)
 
@@ -144,7 +169,10 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm):
         body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
               autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
         
-        body_out, body_hidden = lstm(body_inputs, body_hidden)
+        if args.model == 'lstm':
+            body_out, body_hidden = lstm(body_inputs, body_hidden)
+        else:
+            body_out = cnn(body_inputs, body_hidden)
 
         # average all words of each question from body_out
         average_body_out = average_questions(body_out, bodies, padding_id)
@@ -233,6 +261,10 @@ if __name__ == "__main__":
     argparser.add_argument("--hidden_size",
             type = int,
             default = 100
+        )
+    argparser.add_argument("--model",
+            type = str,
+            default = "lstm"
         )
     
     args = argparser.parse_args()
