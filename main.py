@@ -137,8 +137,10 @@ def main(args):
             # average body and title
             # representations of the questions as found by the LSTM
             hidden = (average_title_out + average_body_out) * 0.5
-
-            triples_vectors = hidden[torch.LongTensor(triples.ravel())]
+            if args.cuda:
+            	triples_vectors = hidden[torch.LongTensor(triples.ravel()).cuda()]
+            else: 
+            	triples_vectors = hidden[torch.LongTensor(triples.ravel())]
             triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
 
             query = triples_vectors[:, 0, :].unsqueeze(1)
@@ -147,15 +149,16 @@ def main(args):
             cos_similarity = F.cosine_similarity(query, examples, dim=2)
             # print "training"
             # print cos_similarity.size()
-
-            targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor))
-
-            # outputs a Variable
-            # By default, the losses are averaged over observations for each minibatch.
             if args.cuda:
-                loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3).cuda()
+            	targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor).cuda())
             else:
-                loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3)
+            	targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor)
+            # outputs a Variable
+            # By default, the losses are averaged over observations for each minibatch
+            if args.cuda:
+            	loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3).cuda()
+            else:
+                loss = F.multi_margin_loss(cos_similarity, targets, margin=0.3).cuda()
             total_loss += loss.cpu().data.numpy()[0]
             loss.backward()
             #print "average loss: " + str((total_loss/float(count)))
@@ -254,8 +257,11 @@ def average_questions(hidden, ids, padding_id, eps=1e-10):
     """Average the outputs from the hidden states of questions, excluding padding.
     """
     # sequence (title or body) x questions x 1
-    mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).unsqueeze(2))
-
+    if args.cuda:
+    	mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).cuda().unsqueeze(2))
+    else:
+    	mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).unsqueeze(2))
+    else:
     # questions x hidden (=200)
     masked_sum = torch.sum(mask * hidden, dim=0)
 
