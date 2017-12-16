@@ -145,9 +145,24 @@ def read_annotations(path, K_neg=20):
 
     return result
 
-def create_batches(ids_corpus, data, batch_size, padding_id):
-    data_order = range(len(data))
-    random.shuffle(data_order)
+def android_annotations(positives, negatives):
+    result = []
+    for query in positives:
+        if query in negatives and len(negatives[query]) >= 20:
+            pos = positives[query]
+            random.shuffle(pos)
+            neg = negatives[query]
+            random.shuffle(neg)
+            qids = neg[:20] + [pos[0]]
+            qlabels = [0]*20+[1]
+            result.append((query, qids, qlabels))
+    return result
+
+def domain_classifier_batch(ubuntu_ids_corpus, android_ids_corpus, ubuntu_data, android_data, batch_size, padding_id):
+    ubntu_data_order = range(len(ubuntu_data))
+    random.shuffle(ubuntu_data_order)
+    android_data_order = range(len(android_data))
+    random.shuffle(android_data_order)
 
     N = len(data)
     count = 0
@@ -159,9 +174,6 @@ def create_batches(ids_corpus, data, batch_size, padding_id):
     for data_point in xrange(N):
         i = data_order[data_point]
         pid, qids, qlabels = data[i]
-        # print "pid: " + str(pid)
-        # print "qids: " + str(qids)
-        # print "qlabels: " + str(qlabels)
         if pid not in ids_corpus: continue
         count += 1
         for id in [pid] + qids:
@@ -176,13 +188,52 @@ def create_batches(ids_corpus, data, batch_size, padding_id):
         pos = [ pid2id[q] for q, l in zip(qids, qlabels) if l == 1 and q in pid2id ]
         neg = [ pid2id[q] for q, l in zip(qids, qlabels) if l == 0 and q in pid2id ]
         triples += [ [pid,x]+neg for x in pos ]
-        #print titles
 
         #once we've accumulated enough data to create a batch, or we've reached end of data
         if count == batch_size or data_point == N-1:
-            # print "count: " + str(count)
-            # print "titles shape b4 creating batch = " + str(len(titles)) + ", " + str(max(1, max(len(x) for x in titles)))
-            # print "length of titles before creating batch: " + str(len(titles))
+            titles, bodies = create_one_batch(titles, bodies, padding_id)
+
+            triples = create_hinge_batch(triples)
+            batches.append((titles, bodies, triples))
+            titles = [ ]
+            bodies = [ ]
+            triples = [ ]
+            pid2id = {}
+            count = 0
+    title1 = batches[0][0]
+    return batches
+
+def create_batches(ids_corpus, data, batch_size, padding_id):
+    data_order = range(len(data))
+    random.shuffle(data_order)
+
+    N = len(data)
+    count = 0
+    pid2id = {}
+    titles = [ ]
+    bodies = [ ]
+    triples = [ ]
+    batches = [ ]
+    for data_point in xrange(N):
+        i = data_order[data_point]
+        pid, qids, qlabels = data[i]
+        if pid not in ids_corpus: continue
+        count += 1
+        for id in [pid] + qids:
+            if id not in pid2id:
+                if id not in ids_corpus: continue
+                # assign id based on number of data points seem so far
+                pid2id[id] = len(titles)
+                title, body = ids_corpus[id]
+                titles.append(title)
+                bodies.append(body)
+        pid = pid2id[pid]
+        pos = [ pid2id[q] for q, l in zip(qids, qlabels) if l == 1 and q in pid2id ]
+        neg = [ pid2id[q] for q, l in zip(qids, qlabels) if l == 0 and q in pid2id ]
+        triples += [ [pid,x]+neg for x in pos ]
+
+        #once we've accumulated enough data to create a batch, or we've reached end of data
+        if count == batch_size or data_point == N-1:
             titles, bodies = create_one_batch(titles, bodies, padding_id)
 
             triples = create_hinge_batch(triples)
@@ -210,22 +261,9 @@ def create_eval_batches(ids_corpus, data, padding_id):
 
 def create_one_batch(titles, bodies, padding_id):
     max_title_len = max(1, max(len(x) for x in titles))
-    # print "max title length: " + str(max_title_len)
     max_body_len = max(1, max(len(x) for x in bodies))
-    # print "before batch: "
-    # print "titles shape = " + str(len(titles)) + ", " + str(max_title_len)
-    #print titles
-    # pad data to padding id, which is max vocab length
     titles = (np.column_stack([ np.pad(x,(0,max_title_len-len(x)),'constant',
                             constant_values=padding_id) for x in titles]))
-    # print "create one batch: titles shape, bodies shape"
-    # print titles.shape
-    # bodies = (np.column_stack([ np.pad(x,(0,max_body_len-len(x)),'constant',
-                            # constant_values=padding_id) for x in bodies]))
-    # print bodies.shape
-    # print titles
-    # print "title shape: "
-    # print titles.shape
     bodies = (np.column_stack([ np.pad(x,(0,max_body_len-len(x)),'constant',
                             constant_values=padding_id) for x in bodies]))
     return titles, bodies
@@ -235,6 +273,16 @@ def create_hinge_batch(triples):
     triples = np.vstack([ np.pad(x,(0,max_len-len(x)),'edge')
                         for x in triples ]).astype('int32')
     return triples
+
+def load_android_pairs(filename, positive=True):
+    """Load question pairs with question id's.
+    """
+    with open(filename, "rt") as f:
+        X = []
+        for line in f:
+            X.append(line.strip().split(" "))
+        y = [1 if positive else 0]*len(X)
+    return X, y
 
 def random_init(size, rng=None, rng_type=None):
     if rng is None: rng = np.random.RandomState(random.randint(0,9999))
