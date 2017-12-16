@@ -6,23 +6,24 @@ import torch.nn.functional as F
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from meter import AUCMeter
 
 def read_corpus(path):
     """Creates a dictionary mapping ID to a tuple
     tuple: dictionary for question title string, dictionary for body string"""
     print "reading corpus"
     raw_corpus = {}
-    all_words = set()
+    all_sequences = []
     fopen = gzip.open if path.endswith(".gz") else open
     with fopen(path) as fin:
         for line in fin:
             id, title, body = line.split("\t")
-            title = title.strip()
-            body = body.strip()
+            title = title.lower().strip()
+            body = body.lower().strip()
             raw_corpus[id] = (title, body)
-            all_words.update(title.strip().split(" "))
-            all_words.update(body.strip().split(" "))
-    return raw_corpus, all_words
+            all_sequences.append(title.strip())
+            all_sequences.append(body.strip())
+    return raw_corpus, all_sequences
 
 def load_data(filename, positive=True):
 	"""Load question pairs with question id's.
@@ -36,79 +37,64 @@ def load_data(filename, positive=True):
 
 # corpus.tsv format:
 # id \t title \t body \n
-raw_corpus, all_words = read_corpus("../Android/corpus.tsv.gz")
+raw_corpus, all_sequences = read_corpus("../Android/corpus.tsv.gz")
 
-dev_positives = {}
-dev_negatives = {}
+def calculate_meter(data):
+	positives = {}
+	negatives = {}
 
-print "loading data"
-# dev.[pos|neg].txt and test.[pos|neg].txt format:
-# id \w id
-dev_pos_ids_X, dev_pos_Y = load_data("../Android/dev.pos.txt", True)
-for q1, q2 in dev_pos_ids_X:
-	if q1 in dev_positives:
-		dev_positives[q1].append(q2)
+	print "loading data"
+	# dev.[pos|neg].txt and test.[pos|neg].txt format:
+	# id \w id
+	if data == 'dev':
+		pos_ids_X, pos_Y = load_data("../Android/dev.pos.txt", True)
 	else:
-		dev_positives[q1] = [q2]
+		pos_ids_X, pos_Y = load_data("../Android/test.pos.txt", True)
+	for q1, q2 in pos_ids_X:
+		if q1 in positives:
+			positives[q1].append(q2)
+		else:
+			positives[q1] = [q2]
 
-dev_neg_ids_X, dev_neg_Y = load_data("../Android/dev.neg.txt", False)
-# dev_neg_X = ids_to_text(dev_neg_ids_X, raw_corpus)
-for q1, q2 in dev_neg_ids_X:
-	if q1 in dev_negatives:
-		dev_negatives[q1].append(q2)
+	if data == 'dev':
+		neg_ids_X, neg_Y = load_data("../Android/dev.neg.txt", False)
 	else:
-		dev_negatives[q1] = [q2]
+		neg_ids_X, neg_Y = load_data("../Android/test.neg.txt", False)
+	for q1, q2 in neg_ids_X:
+		if q1 in negatives:
+			negatives[q1].append(q2)
+		else:
+			negatives[q1] = [q2]
 
-test_pos_ids_X, test_pos_Y = load_data("../Android/test.pos.txt", True)
+	vectorizer = TfidfVectorizer()
+	print "tfidf fit"
+	vectorizer.fit(all_sequences)
+	# 36404 unique words
+	# print len(vectorizer.vocabulary_)
 
-test_neg_ids_X, test_neg_Y = load_data("../Android/test.neg.txt", False)
+	meter = AUCMeter()
 
-vectorizer = TfidfVectorizer()
-print "tfidf fit"
-vectorizer.fit(all_words)
-# 36404 unique words
-# print len(vectorizer.vocabulary_)
+	qlabels = []
+	all_questions = []
+	question_ids = set()
+	question_ids.update(positives.keys())
+	question_ids.update(negatives.keys())
+	for qid in question_ids:
+		questions = [raw_corpus[qid][0] + " " + raw_corpus[qid][1]]
+		questions.extend([raw_corpus[nid][0] + " " + raw_corpus[nid][1] for nid in negatives[qid]])
+		questions.extend([raw_corpus[pid][0] + " " + raw_corpus[pid][1] for pid in positives[qid]])
+		all_questions.append(questions)
+		qlabels.append([0]*len(negatives[qid]) + [1]*len(positives[qid]))
 
-# dev
-dev_qlabels = []
-dev_questions = []
-dev_question_ids = set()
-dev_question_ids.update(dev_positives.keys())
-dev_question_ids.update(dev_negatives.keys())
-for qid in dev_question_ids:
-	questions = [raw_corpus[qid][0] + " " + raw_corpus[qid][1]]
-	questions.extend([raw_corpus[nid][0] + " " + raw_corpus[nid][1] for nid in dev_negatives[qid]])
-	questions.extend([raw_corpus[pid][0] + " " + raw_corpus[pid][1] for pid in dev_positives[qid]])
-	dev_questions.append(questions)
-	dev_qlabels.extend([0]*len(dev_negatives[qid]))
-	dev_qlabels.extend([1]*len(dev_positives[qid]))
+	for question, qlabel in zip(all_questions, qlabels):
+		query = torch.DoubleTensor(vectorizer.transform([question[0]]).todense())
+		examples = torch.DoubleTensor(vectorizer.transform(question[1:]).todense())
 
-print "transforming to tfidf"
-dev_tfidf = [vectorizer.transform(dev_question).toarray() for dev_question in dev_questions]
-dev_tfidf = np.array(dev_tfidf)
+		cos_similarity = F.cosine_similarity(query, examples, dim=1)
+		target = torch.DoubleTensor(qlabel)
+		meter.add(cos_similarity, target)
 
-print dev_tfidf
-print type(dev_tfidf[0])
-print dev_tfidf[0].shape
-dev_query = torch.DoubleTensor(dev_tfidf[0])
-dev_examples = 
-# dev_examples = [dev_example.todense() for dev_example in dev_tfidf[1:]]
-# dev_examples = torch.DoubleTensor(np.array(dev_examples))
+	print meter.value(0.05)
 
-# print np.array(dev_tfidf)
-print dev_query
-# print dev_examples
-
-quit()
-
-print "calculating cosine similarities"
-dev_cos_similarity = F.cosine_similarity(dev_query, dev_examples, dim=1)
-dev_ranked_similarities = np.argsort(-1*dev_cos_similarity)
-dev_positive_similarity = dev_qlabels[dev_ranked_similarities]
-
-print "evaluating"
-dev_evaluator = Evaluation(dev_positive_similarity)
-print "precision at 1: " + str(dev_evaluator.Precision(1))
-print "precision at 5: " + str(dev_evaluator.Precision(5))
-print "MAP: " + str(dev_evaluator.MAP())
-print "MRR: " + str(dev_evaluator.MRR())
+calculate_meter("dev")
+calculate_meter("test")

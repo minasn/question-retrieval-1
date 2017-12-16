@@ -6,7 +6,6 @@ import corpus
 import numpy as np
 import csv
 
-from scipy import spatial
 from evaluation import *
 from datetime import datetime
 
@@ -14,7 +13,6 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 import torch.nn.functional as F
-from torch.optim import Adam
 import torch.autograd as autograd
 
 def main(args):
@@ -373,14 +371,6 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch
     with open(os.path.join(sys.path[0],args.results_file), 'a') as evaluate_file:
         writer = csv.writer(evaluate_file, dialect='excel')
         writer.writerow(metrics)
-
-def cos_sim_func(triples_vectors):
-    """Create an array of the cosine similarity scores of each vector
-    in triple and the first vector in triple. Excludes the first vector.
-    """
-    cos_sim = np.vectorize(lambda x: 1 - spatial.distance.cosine(triples_vectors[0], x))
-    # exclude the first question in triple
-    return cos_sim(triples_vectors)[1:]
 
 def average_questions(hidden, ids, padding_id, eps=1e-10):
     """Average the outputs from the hidden states of questions, excluding padding.

@@ -10,8 +10,8 @@ def read_corpus(path):
     with fopen(path) as fin:
         for line in fin:
             id, title, body = line.split("\t")
-            title = title.strip().split()
-            body = body.strip().split()
+            title = title.lower().strip().split()
+            body = body.lower().strip().split()
             raw_corpus[id] = (title, body)
     return raw_corpus
 
@@ -58,7 +58,7 @@ def questions_to_ids(vocab_map, words):
 
 def map_corpus(vocab_map, raw_corpus, max_len=100):
     """Returns a dictionary mapping question id to a tuple of two arrays:
-    ids for question, and ids for question body"""
+    ids for question title, and ids for question body"""
     ids_corpus = { }
     for id, pair in raw_corpus.iteritems():
         item = (questions_to_ids(vocab_map, pair[0]),
