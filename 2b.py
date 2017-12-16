@@ -32,6 +32,7 @@ def load_model(args):
     optimizer = Adam(cnn.parameters())
     if args.cuda:
         cnn.cuda()
+    return cnn
 
 def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn):
     print "starting evaluation"
