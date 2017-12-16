@@ -33,6 +33,9 @@ def main(args):
 
     time2 = datetime.now()
     print "time to preprocess: " + str(time2-time1)
+
+    if args.model == 'cnn':
+        args.margin = 0.2
     
     if args.load_model:
         if args.model == 'lstm':
@@ -142,7 +145,8 @@ def main(args):
             else:
                 title_out = cnn(title_inputs)
                 title_out = F.tanh(title_out)
-                title_out = title_out.view(title_length, title_num_questions, -1)
+                title_out = title_out.transpose(1,2).transpose(0,1)
+                #title_out = title_out.view(title_length, title_num_questions, -1)
 
             # average all words of each question from title_out
             # title_out (max sequence length) x (batch size) x (hidden size)
@@ -181,7 +185,8 @@ def main(args):
             else:
                 body_out = cnn(body_inputs)
                 body_out = F.tanh(body_out)
-                body_out = body_out.view(body_length, body_num_questions, -1)
+                body_out = body_out.transpose(1,2).transpose(0,1)
+                #body_out = body_out.view(body_length, body_num_questions, -1)
 
             average_body_out = average_questions(body_out, bodies, padding_id)
             count+=1
@@ -218,33 +223,33 @@ def main(args):
             # outputs a Variable
             # By default, the losses are averaged over observations for each minibatch
             if args.cuda:
-                loss = F.multi_margin_loss(cos_similarity, targets, margin = 0.3).cuda()
+                loss = F.multi_margin_loss(cos_similarity, targets, margin = args.margin).cuda()
             else:
-                loss = F.multi_margin_loss(cos_similarity, targets, margin=0.3)
+                loss = F.multi_margin_loss(cos_similarity, targets, margin=args.margin)
             total_loss += loss.cpu().data.numpy()[0]
             loss.backward()
             #print "average loss: " + str((total_loss/float(count)))
 
             optimizer.step() 
 
-        result_headers = ['Epoch', 'MAP', 'MRR', 'P@1', 'P@5']
-        with open(os.path.join(sys.path[0], args.results_file), 'a') as evaluate_file:
-            writer = csv.writer(evaluate_file, dialect='excel')
-            writer.writerow(result_headers)
+            result_headers = ['Epoch', 'MAP', 'MRR', 'P@1', 'P@5']
+            with open(os.path.join(sys.path[0], args.results_file), 'a') as evaluate_file:
+                writer = csv.writer(evaluate_file, dialect='excel')
+                writer.writerow(result_headers)
 
-        if args.model == 'lstm':
-            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm, epoch)
-        else:
-            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn, epoch)
-
-        if args.save_model:
-            # saving the model
             if args.model == 'lstm':
-                print "Saving lstm model epoch " + str(epoch) + " to lstm_model" + str(new_model_num)
-                torch.save(lstm.state_dict(), "lstm_models/lstm_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
+                evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm, epoch)
             else:
-                print "Saving cnn model epoch " + str(epoch) + " to cnn_model" + str(new_model_num)
-                torch.save(cnn.state_dict(), "cnn_models/cnn_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
+                evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn, epoch)
+
+            if args.save_model:
+                # saving the model
+                if args.model == 'lstm':
+                    print "Saving lstm model epoch " + str(epoch) + " to lstm_model" + str(new_model_num)
+                    torch.save(lstm.state_dict(), "lstm_models/lstm_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
+                else:
+                    print "Saving cnn model epoch " + str(epoch) + " to cnn_model" + str(new_model_num)
+                    torch.save(cnn.state_dict(), "cnn_models/cnn_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
 
 def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch):
     print "starting evaluation"
@@ -295,7 +300,8 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch
         else:
             title_out = cnn(title_inputs)
             title_out = F.tanh(title_out)
-            title_out = title_out.view(title_length, title_num_questions, -1)
+            title_out = title_out.transpose(1,2).transpose(0,1)
+            #title_out = title_out.view(title_length, title_num_questions, -1)
 
         average_title_out = average_questions(title_out, titles, padding_id)
 
@@ -326,7 +332,8 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch
         else:
             body_out = cnn(body_inputs)
             body_out = F.tanh(body_out)
-            body_out = body_out.view(body_length, body_num_questions, -1)
+            body_out = body_out.transpose(1,2).transpose(0,1)
+            #body_out = body_out.view(body_length, body_num_questions, -1)
 
         # average all words of each question from body_out
         average_body_out = average_questions(body_out, bodies, padding_id)
@@ -437,6 +444,10 @@ if __name__ == "__main__":
         )
     argparser.add_argument("--results_file",
             type = str
+        )
+    argparser.add_argument("--margin",
+            type = str,
+            default = 0.3
         )
 
     args = argparser.parse_args()
