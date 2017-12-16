@@ -1,8 +1,10 @@
 import sys
+import os
 import argparse
 import corpus
 
 import numpy as np
+import csv
 
 from scipy import spatial
 from evaluation import *
@@ -18,7 +20,6 @@ import torch.autograd as autograd
 import os
 
 def main(args):
-    print args.model
     time1 = datetime.now()
     raw_corpus = corpus.read_corpus(args.corpus)
     list_words, vocab_map, embeddings, padding_id = corpus.load_embeddings(corpus.load_embedding_iterator(args.embeddings))
@@ -86,7 +87,7 @@ def main(args):
             else:
                 new_model_num = 0
             print("creating new model " + "cnn_models/cnn_model" + str(new_model_num))
-            os.makedirs("lstm_models/lstm_model" + str(new_model_num))
+            os.makedirs("cnn_models/cnn_model" + str(new_model_num))
 
 
     # lstm tutorial: http://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
@@ -140,6 +141,7 @@ def main(args):
                 title_out, title_hidden = lstm(title_inputs, title_hidden)
             else:
                 title_out = cnn(title_inputs)
+                title_out = F.tanh(title_out)
                 title_out = title_out.view(title_length, title_num_questions, -1)
 
             # average all words of each question from title_out
@@ -178,6 +180,7 @@ def main(args):
                 body_out, body_hidden = lstm(body_inputs, body_hidden)
             else:
                 body_out = cnn(body_inputs)
+                body_out = F.tanh(body_out)
                 body_out = body_out.view(body_length, body_num_questions, -1)
 
             average_body_out = average_questions(body_out, bodies, padding_id)
@@ -224,10 +227,15 @@ def main(args):
 
             optimizer.step() 
 
+        result_headers = ['Epoch', 'MAP', 'MRR', 'P@1', 'P@5']
+        with open(os.path.join(sys.path[0], args.results_file), 'a') as evaluate_file:
+            writer = csv.writer(evaluate_file, dialect='excel')
+            writer.writerow(result_headers)
+
         if args.model == 'lstm':
-            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm)
+            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, lstm, epoch)
         else:
-            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn)
+            evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn, epoch)
 
         if args.save_model:
             # saving the model
@@ -238,7 +246,7 @@ def main(args):
                 print "Saving cnn model epoch " + str(epoch) + " to cnn_model" + str(new_model_num)
                 torch.save(cnn.state_dict(), "cnn_models/cnn_model" + str(new_model_num) + '/' + "epoch" + str(epoch))
 
-def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
+def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch):
     print "starting evaluation"
     val_data = corpus.read_annotations(args.test)
     print "number of lines in test data: " + str(len(val_data))
@@ -286,6 +294,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
             title_out, title_hidden = lstm(title_inputs, title_hidden)
         else:
             title_out = cnn(title_inputs)
+            title_out = F.tanh(title_out)
             title_out = title_out.view(title_length, title_num_questions, -1)
 
         average_title_out = average_questions(title_out, titles, padding_id)
@@ -316,6 +325,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
             body_out, body_hidden = lstm(body_inputs, body_hidden)
         else:
             body_out = cnn(body_inputs)
+            body_out = F.tanh(body_out)
             body_out = body_out.view(body_length, body_num_questions, -1)
 
         # average all words of each question from body_out
@@ -346,10 +356,15 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
         similarities.append(positive_similarity)
 
     evaluator = Evaluation(similarities)
+    metrics = [epoch, evaluator.MAP(), evaluator.MRR(), str(evaluator.Precision(1)), str(evaluator.Precision(5))]
     print "precision at 1: " + str(evaluator.Precision(1))
     print "precision at 5: " + str(evaluator.Precision(5))
     print "MAP: " + str(evaluator.MAP())
     print "MRR: " + str(evaluator.MRR())
+
+    with open(os.path.join(sys.path[0],args.results_file), 'a') as evaluate_file:
+        writer = csv.writer(evaluate_file, dialect='excel')
+        writer.writerow(metrics)
 
 def cos_sim_func(triples_vectors):
     """Create an array of the cosine similarity scores of each vector
@@ -419,6 +434,9 @@ if __name__ == "__main__":
     argparser.add_argument("--save_model", 
             type = int,
             default = 1
+        )
+    argparser.add_argument("--results_file",
+            type = str
         )
 
     args = argparser.parse_args()
