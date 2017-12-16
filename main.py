@@ -17,8 +17,6 @@ import torch.nn.functional as F
 from torch.optim import Adam
 import torch.autograd as autograd
 
-import os
-
 def main(args):
     time1 = datetime.now()
     raw_corpus = corpus.read_corpus(args.corpus)
@@ -135,10 +133,10 @@ def main(args):
             else:
                 if args.cuda:
                     title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
-                    title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+                    #title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
                 else:
                     title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-                    title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+                title_inputs = torch.cat(title_inputs).transpose(0,1).transpose(1,2)
 
             if args.model == 'lstm':
                 title_out, title_hidden = lstm(title_inputs, title_hidden)
@@ -146,7 +144,7 @@ def main(args):
                 title_out = cnn(title_inputs)
                 title_out = F.tanh(title_out)
                 title_out = title_out.transpose(1,2).transpose(0,1)
-                #title_out = title_out.view(title_length, title_num_questions, -1)
+                
 
             # average all words of each question from title_out
             # title_out (max sequence length) x (batch size) x (hidden size)
@@ -175,10 +173,11 @@ def main(args):
             else:
                 if args.cuda:
                     body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
-                    body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+                    #body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
                 else:
                     body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
-                    body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+                    #body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+                body_inputs = torch.cat(body_inputs).transpose(0,1).transpose(1,2)
             
             if args.model == 'lstm':
                 body_out, body_hidden = lstm(body_inputs, body_hidden)
@@ -290,10 +289,11 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch
         else:
             if args.cuda:
                 title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
-                title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+                #title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
             else:
                 title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-                title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+                #title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+            title_inputs = torch.cat(title_inputs).transpose(0,1).transpose(1,2)
 
         if args.model == 'lstm':
             title_out, title_hidden = lstm(title_inputs, title_hidden)
@@ -322,10 +322,11 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch
         else:
             if args.cuda:
                 body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
-                body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+                #body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
             else:
                 body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
-                body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+                #body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+            body_inputs = torch.cat(body_inputs).transpose(0,1).transpose(1,2)
         
         if args.model == 'lstm':
             body_out, body_hidden = lstm(body_inputs, body_hidden)
