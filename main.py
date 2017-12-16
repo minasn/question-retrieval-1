@@ -141,6 +141,7 @@ def main(args):
                 title_out, title_hidden = lstm(title_inputs, title_hidden)
             else:
                 title_out = cnn(title_inputs)
+                title_out = F.tanh(title_out)
                 title_out = title_out.view(title_length, title_num_questions, -1)
 
             # average all words of each question from title_out
@@ -179,6 +180,7 @@ def main(args):
                 body_out, body_hidden = lstm(body_inputs, body_hidden)
             else:
                 body_out = cnn(body_inputs)
+                body_out = F.tanh(body_out)
                 body_out = body_out.view(body_length, body_num_questions, -1)
 
             average_body_out = average_questions(body_out, bodies, padding_id)
@@ -292,6 +294,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch
             title_out, title_hidden = lstm(title_inputs, title_hidden)
         else:
             title_out = cnn(title_inputs)
+            title_out = F.tanh(title_out)
             title_out = title_out.view(title_length, title_num_questions, -1)
 
         average_title_out = average_questions(title_out, titles, padding_id)
@@ -322,6 +325,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model, epoch
             body_out, body_hidden = lstm(body_inputs, body_hidden)
         else:
             body_out = cnn(body_inputs)
+            body_out = F.tanh(body_out)
             body_out = body_out.view(body_length, body_num_questions, -1)
 
         # average all words of each question from body_out
