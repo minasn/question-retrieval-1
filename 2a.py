@@ -64,8 +64,8 @@ test_pos_ids_X, test_pos_Y = load_data("../Android/test.pos.txt", True)
 test_neg_ids_X, test_neg_Y = load_data("../Android/test.neg.txt", False)
 
 vectorizer = TfidfVectorizer()
-print "tfidf fit transform"
-tfidf_matrix = vectorizer.fit_transform(all_words)
+print "tfidf fit"
+vectorizer.fit(all_words)
 # 36404 unique words
 # print len(vectorizer.vocabulary_)
 
@@ -84,15 +84,14 @@ for qid in dev_question_ids:
 	dev_qlabels.extend([1]*len(dev_positives[qid]))
 
 print "transforming to tfidf"
-# print dev_questions
-dev_tfidf = [vectorizer.transform(dev_question) for dev_question in dev_questions]
+dev_tfidf = [vectorizer.transform(dev_question).toarray() for dev_question in dev_questions]
 dev_tfidf = np.array(dev_tfidf)
 
 print dev_tfidf
-print dev_tfidf.shape
 print type(dev_tfidf[0])
 print dev_tfidf[0].shape
-dev_query = torch.DoubleTensor(dev_tfidf[0, :])
+dev_query = torch.DoubleTensor(dev_tfidf[0])
+dev_examples = 
 # dev_examples = [dev_example.todense() for dev_example in dev_tfidf[1:]]
 # dev_examples = torch.DoubleTensor(np.array(dev_examples))
 
