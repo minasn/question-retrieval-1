@@ -26,10 +26,12 @@ def main(args):
 
     evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model)
 
-def load_model(args):    
+def load_model(args):   
+    """Load either an LSTM or CNN.
+    """ 
     if args.model == 'lstm':
         print("loading " + args.load_model)
-        lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
+        lstm = nn.LSTM(input_size=args.embedding_size, hidden_size=args.hidden_size)
         lstm.load_state_dict(torch.load(args.load_model))
         optimizer = Adam(lstm.parameters())
         if args.cuda:
@@ -37,7 +39,7 @@ def load_model(args):
         return lstm
     else:
         print("loading " + args.load_model)
-        cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+        cnn = nn.Conv1d(in_channels=arsg.embedding_size, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
         cnn.load_state_dict(torch.load(args.load_model))
         optimizer = Adam(cnn.parameters())
         if args.cuda:
@@ -45,6 +47,8 @@ def load_model(args):
         return cnn
 
 def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
+    """Calculate the AUC score of the model on Android data.
+    """
     meter = AUCMeter()
 
     print "starting evaluation"
@@ -77,10 +81,8 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
         else:
             if args.cuda:
                 title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
-                #title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
             else:
                 title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-                #title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
             title_inputs = torch.cat(title_inputs).transpose(0,1).transpose(1,2)
 
         if args.model == 'lstm':
@@ -89,7 +91,6 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
             title_out = model(title_inputs)
             title_out = F.tanh(title_out)
             title_out = title_out.transpose(1,2).transpose(0,1)
-            #title_out = title_out.view(title_length, title_num_questions, -1)
 
         average_title_out = average_questions(title_out, titles, padding_id)
 
@@ -122,7 +123,6 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
             body_out = cnn(body_inputs)
             body_out = F.tanh(body_out)
             body_out = body_out.transpose(1,2).transpose(0,1)
-            #body_out = body_out.view(body_length, body_num_questions, -1)
 
         # average all words of each question from body_out
         average_body_out = average_questions(body_out, bodies, padding_id)
@@ -186,6 +186,10 @@ if __name__ == "__main__":
     argparser.add_argument("--model",
             type = str,
             default = "lstm"
+        )
+    argparser.add_argument("--embedding_size",
+            type = int,
+            default = 200
         )
 
     args = argparser.parse_args()
