@@ -39,7 +39,7 @@ def load_model(args):
         return lstm
     else:
         print("loading " + args.load_model)
-        cnn = nn.Conv1d(in_channels=arsg.embedding_size, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+        cnn = nn.Conv1d(in_channels=args.embedding_size, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
         cnn.load_state_dict(torch.load(args.load_model))
         optimizer = Adam(cnn.parameters())
         if args.cuda:
@@ -120,7 +120,7 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
         if args.model == 'lstm':
             body_out, body_hidden = model(body_inputs, body_hidden)
         else:
-            body_out = cnn(body_inputs)
+            body_out = model(body_inputs)
             body_out = F.tanh(body_out)
             body_out = body_out.transpose(1,2).transpose(0,1)
 
