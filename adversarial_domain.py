@@ -132,8 +132,12 @@ def main(args):
 
             output = feed_forward.forward(hidden_combined)
 
-            domain_labels = [1]*int(hidden_ubuntu_domain.size()[0]) + [0]*int(hidden_android_domain.size()[0])
-            domain_labels = autograd.Variable(torch.LongTensor(domain_labels))
+
+            domain_labels = [1]*int(hidden_ubuntu.size()[0]) + [0]*int(hidden_android.size()[0])
+            if args.cuda:
+		domain_labels = autograd.Variable(torch.LongTensor(domain_labels).cuda())
+            else:
+		domain_labels = autograd.Variable(torch.LongTensor(domain_labels))
 
             if args.cuda:
                 triples_vectors = hidden_ubuntu[torch.LongTensor(triples.ravel()).cuda()]
@@ -172,9 +176,9 @@ def main(args):
             optimizer.step()
             feed_forward_optimizer.step()
 
-        evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings)
         print "time for one epoch: " + str(datetime.now() - time_begin_epoch)
         time_begin_epoch = datetime.now()
+    	evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings)
 
 def evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings):
     print "starting evaluation"
