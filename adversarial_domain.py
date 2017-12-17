@@ -33,6 +33,9 @@ class FeedForward(nn.Module):
         return output
 
 def main(args):
+    """This file performs domain transfer using an adversarial discriminative network. Example usage:
+
+    python adversarial_domain.py --ubuntu_path ../askubuntu --android_path ../Android --embeddings ../glove.pruned.txt.gz"""
 
     ubuntu_corpus = os.path.join(args.ubuntu_path, 'text_tokenized.txt.gz')
     android_corpus = os.path.join(args.android_path, 'corpus.tsv.gz')
