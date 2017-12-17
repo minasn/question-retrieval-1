@@ -79,6 +79,8 @@ def main(args):
                 cnn.cuda()
 
     feed_forward = FeedForward(args)
+    if args.cuda:
+        feed_forward.cuda()
     feed_forward_optimizer = Adam(feed_forward.parameters(), lr=-0.001)
 
     android_dev_pos_path = os.path.join(args.android_path, 'dev.pos.txt')
@@ -146,10 +148,10 @@ def main(args):
             combined_loss = encoder_loss - args.lam * domain_classifier_loss
             combined_loss.backward()
 
-            optimizer.step() 
+            optimizer.step()
             feed_forward_optimizer.step()
 
-            evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings)
+        evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings)
 
 def evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings):
     print "starting evaluation"
@@ -177,14 +179,7 @@ def evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embedding
         query = hidden[0].unsqueeze(0)
         examples = hidden[1:]
         cos_similarity = F.cosine_similarity(query, examples, dim=1)
-        # print "type of cos similarity"
-        # print type(cos_similarity)
-        # print type(cos_similarity.data)
-        # cos_similarity = torch.DoubleTensor(cos_similarity.data)
         target = torch.DoubleTensor(qlabels)
-        # print "size"
-        # print cos_similarity.size()
-        # print target.size()
         meter.add(cos_similarity.data, target)
     print meter.value(0.05) 
 
