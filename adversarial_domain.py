@@ -6,6 +6,7 @@ import corpus
 import numpy as np
 import csv
 from datetime import datetime
+from meter import AUCMeter
 
 import torch
 import torch.nn as nn
@@ -14,52 +15,78 @@ import torch.nn.functional as F
 from torch.optim import Adam
 import torch.autograd as autograd
 
+class FeedForward(nn.Module):
+    def __init__(self, args):
+        super(FeedForward, self).__init__()
+
+        self.args = args
+        self.lin_layer_1 = nn.Linear(in_features = args.hidden_size, out_features = args.hidden_size)
+        self.lin_layer_2 = nn.Linear(in_features = args.hidden_size, out_features = args.hidden_size)
+        self.output_layer = nn.Linear(in_features = args.hidden_size, out_features = 2)
+
+    def forward(self, inputs):
+        hidden1 = self.lin_layer_1(inputs)
+        activated1 = F.relu(hidden1)
+        hidden2 = self.lin_layer_2(activated1)
+        activated2 = F.relu(hidden2)
+        output = self.output_layer(activated2)
+        return output
+
 def main(args):
+
     ubuntu_corpus = os.path.join(args.ubuntu_path, 'text_tokenized.txt.gz')
     android_corpus = os.path.join(args.android_path, 'corpus.tsv.gz')
     ubuntu_raw_corpus = corpus.read_corpus(ubuntu_corpus)
     android_raw_corpus = corpus.read_corpus(android_corpus)
     list_words, vocab_map, embeddings, padding_id = corpus.load_embeddings(corpus.load_embedding_iterator(args.embeddings))
+    print "loaded embeddings"
+
     ubuntu_ids_corpus = corpus.map_corpus(vocab_map, ubuntu_raw_corpus)
     android_ids_corpus = corpus.map_corpus(vocab_map, android_raw_corpus)
     ubuntu_train = os.path.join(args.ubuntu_path, 'train_random.txt')
     ubuntu_train_annotations = corpus.read_annotations(ubuntu_train)
     print len(ubuntu_train_annotations)
     ubuntu_training_batches = corpus.create_batches(ubuntu_ids_corpus, ubuntu_train_annotations, args.batch_size, padding_id)
+    print "got ubuntu batches"
 
-    android_dev_positives = {}
-    android_dev_negatives = {}
+    if args.load_model:
+        if args.model == 'lstm':
+            print("loading " + args.load_model)
+            lstm = nn.LSTM(input_size=300, hidden_size=args.hidden_size)
+            lstm.load_state_dict(torch.load(args.load_model))
+            optimizer = Adam(lstm.parameters())
+            if args.cuda:
+                lstm.cuda()
+        else:
+            print("loading " + args.load_model)
+            cnn = nn.Conv1d(in_channels=300, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+            cnn.load_state_dict(torch.load(args.load_model))
+            optimizer = Adam(cnn.parameters())
+            if args.cuda:
+                cnn.cuda()
+    else:
+        if args.model == 'lstm':
+            print "training lstm"
+            lstm = nn.LSTM(input_size=300, hidden_size=args.hidden_size)
+            optimizer = Adam(lstm.parameters())
+            if args.cuda:
+                lstm.cuda()
+        else:
+            print "training cnn"
+            cnn = nn.Conv1d(in_channels=300, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+            optimizer = Adam(cnn.parameters())
+            if args.cuda:
+                cnn.cuda()
+
+    feed_forward = FeedForward(args)
+    if args.cuda:
+        feed_forward.cuda()
+    feed_forward_optimizer = Adam(feed_forward.parameters(), lr=-0.001)
+
     android_dev_pos_path = os.path.join(args.android_path, 'dev.pos.txt')
     android_dev_neg_path = os.path.join(args.android_path, 'dev.neg.txt')
-    android_test_pos_path = os.path.join(args.android_path, 'test.pos.txt')
-    android_test_neg_path = os.path.join(args.android_path, 'test.neg.txt')
-
-    dev_pos_ids_X, dev_pos_Y = corpus.load_android_pairs(android_dev_pos_path, True)
-    for q1, q2 in dev_pos_ids_X:
-        if q1 in android_dev_positives:
-            android_dev_positives[q1].append(q2)
-        else:
-            android_dev_positives[q1] = [q2]
-        if q2 in android_dev_positives:
-            android_dev_positives[q2].append(q1)
-        else:
-            android_dev_positives[q2] = [q1]
-
-    dev_neg_ids_X, dev_neg_Y = corpus.load_android_pairs(android_dev_neg_path, False)
-    for q1, q2 in dev_neg_ids_X:
-        if q1 in android_dev_negatives:
-            android_dev_negatives[q1].append(q2)
-        else:
-            android_dev_negatives[q1] = [q2]
-        if q2 in android_dev_negatives:
-            android_dev_negatives[q2].append(q1)
-        else:
-            android_dev_negatives[q2] = [q1]
-
-    android_dev_annotations = corpus.android_annotations(android_dev_positives, android_dev_negatives)
-    print len(android_dev_annotations)
+    android_dev_annotations = android_pairs_to_annotations(android_dev_pos_path, android_dev_neg_path)
     
-    print(1/0)
     count = 1
     hidden_states = []
     total_loss = 0.0
@@ -67,6 +94,9 @@ def main(args):
     for epoch in range(10):
         print "epoch = " + str(epoch)
         for batch in ubuntu_training_batches:
+
+            titles, bodies, triples = batch
+
             optimizer.zero_grad()
             if count%10 == 0:
                 print(count)
@@ -75,12 +105,29 @@ def main(args):
                 time_begin = datetime.now()
             count += 1
 
-            hidden_ubuntu = vectorize_question(args, batch)
+            batch_size = len(batch[2])
+            android_batch = corpus.domain_classifier_batch(android_ids_corpus, android_dev_annotations, batch_size, padding_id)
+            android_titles, android_bodies, _ = android_batch
+
+            if args.model == 'lstm':
+                model = lstm
+            else:
+                model = cnn
+
+            hidden_ubuntu = vectorize_question(args, batch, model, vocab_map, embeddings, padding_id)
+            hidden_android = vectorize_question(args, android_batch, model, vocab_map, embeddings, padding_id)
+            hidden_combined = torch.cat((hidden_ubuntu, hidden_android))
+            input_size = int(hidden_combined.size()[0])
+
+            output = feed_forward.forward(hidden_combined)
+
+            domain_labels = [1]*int(hidden_ubuntu.size()[0]) + [0]*int(hidden_android.size()[0])
+            domain_labels = autograd.Variable(torch.LongTensor(domain_labels))
 
             if args.cuda:
-                triples_vectors = hidden[torch.LongTensor(triples.ravel()).cuda()]
+                triples_vectors = hidden_ubuntu[torch.LongTensor(triples.ravel()).cuda()]
             else: 
-                triples_vectors = hidden[torch.LongTensor(triples.ravel())]
+                triples_vectors = hidden_ubuntu[torch.LongTensor(triples.ravel())]
             triples_vectors = triples_vectors.view(triples.shape[0], triples.shape[1], args.hidden_size)
 
             query = triples_vectors[:, 0, :].unsqueeze(1)
@@ -91,14 +138,90 @@ def main(args):
             else:
                 targets = autograd.Variable(torch.zeros(triples.shape[0]).type(torch.LongTensor))
             if args.cuda:
-                loss = F.multi_margin_loss(cos_similarity, targets, margin = args.margin).cuda()
+                encoder_loss = F.multi_margin_loss(cos_similarity, targets, margin = args.margin).cuda()
             else:
-                loss = F.multi_margin_loss(cos_similarity, targets, margin=args.margin)
-            total_loss += loss.cpu().data.numpy()[0]
-            loss.backward()
-            optimizer.step() 
+                encoder_loss = F.multi_margin_loss(cos_similarity, targets, margin=args.margin)
+            total_loss += encoder_loss.cpu().data.numpy()[0]
 
-def vectorize_question(args, batch):
+            if args.cuda:
+                domain_loss_func = nn.CrossEntropyLoss().cuda()
+            else:
+                domain_loss_func = nn.CrossEntropyLoss()
+            domain_classifier_loss = domain_loss_func(output, domain_labels)
+            combined_loss = encoder_loss - args.lam * domain_classifier_loss
+            combined_loss.backward()
+
+            optimizer.step()
+            feed_forward_optimizer.step()
+
+        evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings)
+
+def evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings):
+    print "starting evaluation"
+    if args.model == 'lstm':
+        lstm = model
+    else:
+        cnn = model
+
+    meter = AUCMeter()
+
+    android_test_pos_path = os.path.join(args.android_path, 'test.pos.txt')
+    android_test_neg_path = os.path.join(args.android_path, 'test.neg.txt')
+    android_test_annotations = android_pairs_to_annotations(android_test_pos_path, android_test_neg_path)
+    android_test_batches = corpus.create_eval_batches(android_ids_corpus, android_test_annotations, padding_id)
+
+    count = 0
+    for batch in android_test_batches:
+        titles, bodies, qlabels = batch
+
+        if args.model == 'lstm':
+            model = lstm
+        else:
+            model = cnn
+        hidden = vectorize_question(args, batch, model, vocab_map, embeddings, padding_id)
+        query = hidden[0].unsqueeze(0)
+        examples = hidden[1:]
+        cos_similarity = F.cosine_similarity(query, examples, dim=1)
+        target = torch.DoubleTensor(qlabels)
+        meter.add(cos_similarity.data, target)
+    print meter.value(0.05) 
+
+def android_pairs_to_annotations(pos_path, neg_path):
+    android_positives = {}
+    android_negatives = {}
+
+    dev_pos_ids_X, dev_pos_Y = corpus.load_android_pairs(pos_path, True)
+    for q1, q2 in dev_pos_ids_X:
+        if q1 in android_positives:
+            android_positives[q1].append(q2)
+        else:
+            android_positives[q1] = [q2]
+        if q2 in android_positives:
+            android_positives[q2].append(q1)
+        else:
+            android_positives[q2] = [q1]
+
+    dev_neg_ids_X, dev_neg_Y = corpus.load_android_pairs(neg_path, False)
+    for q1, q2 in dev_neg_ids_X:
+        if q1 in android_negatives:
+            android_negatives[q1].append(q2)
+        else:
+            android_negatives[q1] = [q2]
+        if q2 in android_negatives:
+            android_negatives[q2].append(q1)
+        else:
+            android_negatives[q2] = [q1]
+
+    android_annotations = corpus.android_annotations(android_positives, android_negatives)
+    return android_annotations
+
+def vectorize_question(args, batch, model, vocab_map, embeddings, padding_id):
+
+    if args.model == 'lstm':
+        lstm = model
+    else:
+        cnn = model
+
     titles, bodies, triples = batch
     title_length, title_num_questions = titles.shape
     body_length, body_num_questions = bodies.shape
@@ -177,6 +300,21 @@ def vectorize_question(args, batch):
 
     return hidden
 
+def average_questions(hidden, ids, padding_id, eps=1e-10):
+    """Average the outputs from the hidden states of questions, excluding padding.
+    """
+    # sequence (title or body) x questions x 1
+    if args.cuda:
+        mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).cuda().unsqueeze(2))
+    else:
+        mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).unsqueeze(2))
+    # questions x hidden (=200)
+    masked_sum = torch.sum(mask * hidden, dim=0)
+
+    # questions x 1
+    lengths = torch.sum(mask, dim=0)
+
+    return masked_sum / (lengths + eps)
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(sys.argv[0])
@@ -220,6 +358,10 @@ if __name__ == "__main__":
     argparser.add_argument("--margin",
             type = str,
             default = 0.3
+        )
+    argparser.add_argument("--lam",
+            type = str,
+            default = 0.001
         )
 
     args = argparser.parse_args()

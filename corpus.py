@@ -158,11 +158,9 @@ def android_annotations(positives, negatives):
             result.append((query, qids, qlabels))
     return result
 
-def domain_classifier_batch(ubuntu_ids_corpus, android_ids_corpus, ubuntu_data, android_data, batch_size, padding_id):
-    ubntu_data_order = range(len(ubuntu_data))
-    random.shuffle(ubuntu_data_order)
-    android_data_order = range(len(android_data))
-    random.shuffle(android_data_order)
+def domain_classifier_batch(ids_corpus, data, batch_size, padding_id):
+    data_order = range(len(data))
+    random.shuffle(data_order)
 
     N = len(data)
     count = 0
@@ -190,18 +188,18 @@ def domain_classifier_batch(ubuntu_ids_corpus, android_ids_corpus, ubuntu_data, 
         triples += [ [pid,x]+neg for x in pos ]
 
         #once we've accumulated enough data to create a batch, or we've reached end of data
-        if count == batch_size or data_point == N-1:
+        if abs(len(triples)-batch_size) < 10 or len(triples) >= batch_size or data_point == N-1:
             titles, bodies = create_one_batch(titles, bodies, padding_id)
 
             triples = create_hinge_batch(triples)
-            batches.append((titles, bodies, triples))
-            titles = [ ]
-            bodies = [ ]
-            triples = [ ]
-            pid2id = {}
-            count = 0
-    title1 = batches[0][0]
-    return batches
+            return (titles, bodies, triples)
+            #batches.append((titles, bodies, triples))
+            # titles = [ ]
+            # bodies = [ ]
+            # triples = [ ]
+            # pid2id = {}
+            # count = 0
+    #return batches
 
 def create_batches(ids_corpus, data, batch_size, padding_id):
     data_order = range(len(data))
