@@ -7,6 +7,7 @@ import csv
 
 import corpus
 from evaluation import *
+from meter import AUCMeter
 
 import torch
 import torch.nn as nn
@@ -15,26 +16,37 @@ import torch.autograd as autograd
 from torch.optim import Adam
 
 def main(args):
-    cnn = load_model(args)
-    print "loaded cnn model"
+    model = load_model(args)
+    print "loaded " + args.model
 
     raw_corpus = corpus.read_corpus(args.corpus)
     list_words, vocab_map, embeddings, padding_id = corpus.load_embeddings(corpus.load_embedding_iterator(args.embeddings))
     print("loaded embeddings")
     ids_corpus = corpus.map_corpus(vocab_map, raw_corpus)
 
-    evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn)
+    evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model)
 
-def load_model(args):
-    print("loading " + args.load_model)
-    cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
-    cnn.load_state_dict(torch.load(args.load_model))
-    optimizer = Adam(cnn.parameters())
-    if args.cuda:
-        cnn.cuda()
-    return cnn
+def load_model(args):    
+    if args.model == 'lstm':
+        print("loading " + args.load_model)
+        lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
+        lstm.load_state_dict(torch.load(args.load_model))
+        optimizer = Adam(lstm.parameters())
+        if args.cuda:
+            lstm.cuda()
+        return lstm
+    else:
+        print("loading " + args.load_model)
+        cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+        cnn.load_state_dict(torch.load(args.load_model))
+        optimizer = Adam(cnn.parameters())
+        if args.cuda:
+            cnn.cuda()
+        return cnn
 
-def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn):
+def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, model):
+    meter = AUCMeter()
+
     print "starting evaluation"
     val_data = corpus.read_annotations(args.test)
     print "number of lines in test data: " + str(len(val_data))
@@ -48,28 +60,69 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn):
         body_length, body_num_questions = bodies.shape
         title_embeddings, body_embeddings = corpus.get_embeddings(titles, bodies, vocab_map, embeddings)
         
-        if args.cuda:
-            title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
-        else:
-            title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
-        title_inputs = torch.cat(title_inputs).transpose(0,1).transpose(1,2)
+        if args.model == 'lstm':
+            if args.cuda:
+                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
+                title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
 
-        title_out = cnn(title_inputs)
-        title_out = F.tanh(title_out)
-        title_out = title_out.transpose(1,2).transpose(0,1)
+                title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size).cuda()),
+                      autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size)).cuda()))
+            else:
+                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+                title_inputs = torch.cat(title_inputs).view(title_length, title_num_questions, -1)
+                # title_inputs = torch.cat(title_inputs).view(title_num_questions, title_length, -1)
+
+                title_hidden = (autograd.Variable(torch.zeros(1, title_num_questions, args.hidden_size)),
+                      autograd.Variable(torch.zeros((1, title_num_questions, args.hidden_size))))
+        else:
+            if args.cuda:
+                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings).cuda())]
+                #title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+            else:
+                title_inputs = [autograd.Variable(torch.FloatTensor(title_embeddings))]
+                #title_inputs = torch.cat(title_inputs).view(title_num_questions, 200, -1)
+            title_inputs = torch.cat(title_inputs).transpose(0,1).transpose(1,2)
+
+        if args.model == 'lstm':
+            title_out, title_hidden = model(title_inputs, title_hidden)
+        else:
+            title_out = model(title_inputs)
+            title_out = F.tanh(title_out)
+            title_out = title_out.transpose(1,2).transpose(0,1)
+            #title_out = title_out.view(title_length, title_num_questions, -1)
 
         average_title_out = average_questions(title_out, titles, padding_id)
 
         # body
-        if args.cuda:
-            body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
+        if args.model == 'lstm':
+            if args.cuda:
+                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
+                body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+
+                body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size).cuda()),
+                      autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size)).cuda()))
+            else:
+                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+                body_inputs = torch.cat(body_inputs).view(body_length, body_num_questions, -1)
+
+                body_hidden = (autograd.Variable(torch.zeros(1, body_num_questions, args.hidden_size)),
+                      autograd.Variable(torch.zeros((1, body_num_questions, args.hidden_size))))
         else:
-            body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
-        body_inputs = torch.cat(body_inputs).transpose(0,1).transpose(1,2)
+            if args.cuda:
+                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings).cuda())]
+                #body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+            else:
+                body_inputs = [autograd.Variable(torch.FloatTensor(body_embeddings))]
+                #body_inputs = torch.cat(body_inputs).view(body_num_questions, 200, -1)
+            body_inputs = torch.cat(body_inputs).transpose(0,1).transpose(1,2)
         
-        body_out = cnn(body_inputs)
-        body_out = F.tanh(body_out)
-        body_out = body_out.transpose(1,2).transpose(0,1)
+        if args.model == 'lstm':
+            body_out, body_hidden = model(body_inputs, body_hidden)
+        else:
+            body_out = cnn(body_inputs)
+            body_out = F.tanh(body_out)
+            body_out = body_out.transpose(1,2).transpose(0,1)
+            #body_out = body_out.view(body_length, body_num_questions, -1)
 
         # average all words of each question from body_out
         average_body_out = average_questions(body_out, bodies, padding_id)
@@ -79,25 +132,31 @@ def evaluation(args, padding_id, ids_corpus, vocab_map, embeddings, cnn):
         # 560 x 100
         hidden = (average_title_out + average_body_out) * 0.5
 
-        query = hidden[0].unsqueeze(0)
-        examples = hidden[1:]
+        query = torch.DoubleTensor(hidden[0].unsqueeze(0).cpu().data.numpy())
+        examples = torch.DoubleTensor(hidden[1:].cpu().data.numpy())
 
         cos_similarity = F.cosine_similarity(query, examples, dim=1)
-        cos_similarity_np = cos_similarity.cpu().data.numpy()
-        ranked_similarities = np.argsort(-1*cos_similarity_np)
-        positive_similarity = qlabels[ranked_similarities]
-        similarities.append(positive_similarity)
+        qlabels = [float(qlabel) for qlabel in list(qlabels)]
+        target = torch.DoubleTensor(qlabels)
+        meter.add(cos_similarity, target)
 
-    evaluator = Evaluation(similarities)
-    metrics = [evaluator.MAP(), evaluator.MRR(), str(evaluator.Precision(1)), str(evaluator.Precision(5))]
-    print "precision at 1: " + str(evaluator.Precision(1))
-    print "precision at 5: " + str(evaluator.Precision(5))
-    print "MAP: " + str(evaluator.MAP())
-    print "MRR: " + str(evaluator.MRR())
+    print meter.value(0.05)
 
-    with open(os.path.join(sys.path[0],args.results_file), 'a') as evaluate_file:
-        writer = csv.writer(evaluate_file, dialect='excel')
-        writer.writerow(metrics)
+def average_questions(hidden, ids, padding_id, eps=1e-10):
+    """Average the outputs from the hidden states of questions, excluding padding.
+    """
+    # sequence (title or body) x questions x 1
+    if args.cuda:
+        mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).cuda().unsqueeze(2))
+    else:
+        mask = autograd.Variable(torch.from_numpy(1 * (ids != padding_id)).type(torch.FloatTensor).unsqueeze(2))
+    # questions x hidden (=200)
+    masked_sum = torch.sum(mask * hidden, dim=0)
+
+    # questions x 1
+    lengths = torch.sum(mask, dim=0)
+
+    return masked_sum / (lengths + eps)
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(sys.argv[0])
@@ -124,8 +183,9 @@ if __name__ == "__main__":
             type = str,
             default = ""
         )
-    argparser.add_argument("--results_file",
-            type = str
+    argparser.add_argument("--model",
+            type = str,
+            default = "lstm"
         )
 
     args = argparser.parse_args()

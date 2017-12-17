@@ -36,14 +36,14 @@ def main(args):
     if args.load_model:
         if args.model == 'lstm':
             print("loading " + args.load_model)
-            lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
+            lstm = nn.LSTM(input_size=args.embedding_size, hidden_size=args.hidden_size)
             lstm.load_state_dict(torch.load(args.load_model))
             optimizer = Adam(lstm.parameters())
             if args.cuda:
                 lstm.cuda()
         else:
             print("loading " + args.load_model)
-            cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+            cnn = nn.Conv1d(in_channels=args.embedding_size, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
             cnn.load_state_dict(torch.load(args.load_model))
             optimizer = Adam(cnn.parameters())
             if args.cuda:
@@ -51,13 +51,13 @@ def main(args):
     else:
         if args.model == 'lstm':
             print "training lstm"
-            lstm = nn.LSTM(input_size=200, hidden_size=args.hidden_size)
+            lstm = nn.LSTM(input_size=args.embedding_size, hidden_size=args.hidden_size)
             optimizer = Adam(lstm.parameters())
             if args.cuda:
                 lstm.cuda()
         else:
             print "training cnn"
-            cnn = nn.Conv1d(in_channels=200, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+            cnn = nn.Conv1d(in_channels=args.embedding_size, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
             optimizer = Adam(cnn.parameters())
             if args.cuda:
                 cnn.cuda()
@@ -439,6 +439,10 @@ if __name__ == "__main__":
     argparser.add_argument("--margin",
             type = str,
             default = 0.3
+        )
+    argparser.add_argument("--embedding_size",
+            type = int,
+            default = 200
         )
 
     args = argparser.parse_args()
