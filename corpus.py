@@ -158,7 +158,7 @@ def android_annotations(positives, negatives):
             result.append((query, qids, qlabels))
     return result
 
-def domain_classifier_batch(ids_corpus, data, batch_size, padding_id):
+def domain_classifier_batch(ids_corpus, data, padding_id):
     data_order = range(len(data))
     random.shuffle(data_order)
 
@@ -188,7 +188,8 @@ def domain_classifier_batch(ids_corpus, data, batch_size, padding_id):
         triples += [ [pid,x]+neg for x in pos ]
 
         #once we've accumulated enough data to create a batch, or we've reached end of data
-        if abs(len(triples)-batch_size) < 10 or len(triples) >= batch_size or data_point == N-1:
+        #if abs(len(triples)-batch_size) < 10 or len(triples) >= batch_size or data_point == N-1:
+        if len(titles) >= 25:
             titles, bodies = create_one_batch(titles, bodies, padding_id)
 
             triples = create_hinge_batch(triples)

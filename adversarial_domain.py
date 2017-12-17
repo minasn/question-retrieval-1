@@ -105,9 +105,14 @@ def main(args):
                 time_begin = datetime.now()
             count += 1
 
-            batch_size = len(batch[2])
-            android_batch = corpus.domain_classifier_batch(android_ids_corpus, android_dev_annotations, batch_size, padding_id)
+            ubuntu_batch = corpus.domain_classifier_batch(ubuntu_ids_corpus, ubuntu_train_annotations, padding_id)
+            ubuntu_titles, ubuntu_bodies, _ = ubuntu_batch
+            android_batch = corpus.domain_classifier_batch(android_ids_corpus, android_dev_annotations, padding_id)
             android_titles, android_bodies, _ = android_batch
+
+            # print "shapes"
+            # print ubuntu_titles.shape
+            # print android_titles.shape
 
             if args.model == 'lstm':
                 model = lstm
@@ -115,13 +120,14 @@ def main(args):
                 model = cnn
 
             hidden_ubuntu = vectorize_question(args, batch, model, vocab_map, embeddings, padding_id)
-            hidden_android = vectorize_question(args, android_batch, model, vocab_map, embeddings, padding_id)
-            hidden_combined = torch.cat((hidden_ubuntu, hidden_android))
+            hidden_ubuntu_domain = vectorize_question(args, ubuntu_batch, model, vocab_map, embeddings, padding_id)
+            hidden_android_domain = vectorize_question(args, android_batch, model, vocab_map, embeddings, padding_id)
+            hidden_combined = torch.cat((hidden_ubuntu_domain, hidden_android_domain))
             input_size = int(hidden_combined.size()[0])
 
             output = feed_forward.forward(hidden_combined)
 
-            domain_labels = [1]*int(hidden_ubuntu.size()[0]) + [0]*int(hidden_android.size()[0])
+            domain_labels = [1]*int(hidden_ubuntu_domain.size()[0]) + [0]*int(hidden_android_domain.size()[0])
             domain_labels = autograd.Variable(torch.LongTensor(domain_labels))
 
             if args.cuda:
