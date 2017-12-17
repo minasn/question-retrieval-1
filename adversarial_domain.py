@@ -89,9 +89,12 @@ def main(args):
     
     count = 1
     hidden_states = []
+    total_encoder_loss = 0.0
+    total_domain_loss = 0.0
     total_loss = 0.0
     time_begin = datetime.now()
-    for epoch in range(10):
+    time_begin_epoch = datetime.now()
+    for epoch in range(20):
         print "epoch = " + str(epoch)
         for batch in ubuntu_training_batches:
 
@@ -100,6 +103,8 @@ def main(args):
             optimizer.zero_grad()
             if count%10 == 0:
                 print(count)
+                print "average encoder loss: " + str((total_encoder_loss/float(count)))
+                print "average domain loss: " + str((total_domain_loss/float(count)))
                 print "average loss: " + str((total_loss/float(count)))
                 print("time for 10 batches: " + str(datetime.now() - time_begin))
                 time_begin = datetime.now()
@@ -147,20 +152,29 @@ def main(args):
                 encoder_loss = F.multi_margin_loss(cos_similarity, targets, margin = args.margin).cuda()
             else:
                 encoder_loss = F.multi_margin_loss(cos_similarity, targets, margin=args.margin)
-            total_loss += encoder_loss.cpu().data.numpy()[0]
+            total_encoder_loss += encoder_loss.cpu().data.numpy()[0]
 
+            # if args.cuda:
+            #     domain_loss_func = nn.CrossEntropyLoss().cuda()
+            # else:
+            #     domain_loss_func = nn.CrossEntropyLoss()
+            # domain_classifier_loss = domain_loss_func(output, domain_labels)
             if args.cuda:
-                domain_loss_func = nn.CrossEntropyLoss().cuda()
+                domain_classifier_loss = F.cross_entropy(output, domain_labels).cuda()
             else:
-                domain_loss_func = nn.CrossEntropyLoss()
-            domain_classifier_loss = domain_loss_func(output, domain_labels)
+                domain_classifier_loss = F.cross_entropy(output, domain_labels)
+            total_domain_loss += domain_classifier_loss.cpu().data.numpy()[0]
+
             combined_loss = encoder_loss - args.lam * domain_classifier_loss
+            total_loss += combined_loss.cpu().data.numpy()[0]
             combined_loss.backward()
 
             optimizer.step()
             feed_forward_optimizer.step()
 
         evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings)
+        print "time for one epoch: " + str(datetime.now() - time_begin_epoch)
+        time_begin_epoch = datetime.now()
 
 def evaluation(args, padding_id, android_ids_corpus, model, vocab_map, embeddings):
     print "starting evaluation"
@@ -367,7 +381,7 @@ if __name__ == "__main__":
         )
     argparser.add_argument("--lam",
             type = str,
-            default = 0.001
+            default = 1e-6
         )
 
     args = argparser.parse_args()
