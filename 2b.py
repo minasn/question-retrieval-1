@@ -1,8 +1,18 @@
-"""Direct transfer using models trained on the AskUbuntu dataset and then
+"""
+Part 2.3.1.b
+
+Direct transfer using models trained on the AskUbuntu dataset and then
 evaluated on the Android dataset, without doing any domain adaptation. Uses embeddings and a trained LSTM or CNN model.
 
-Example Usage: 
-python2 2b.py --corpus ../Android/corpus.tsv.gz --test android_test.txt --embeddings ../glove.pruned.txt.gz --load_model cnn_models/cnn_model8/epoch9 [--model cnn] [--hidden_size 100] [--embedding_size 300] [--cuda 1]
+Usage: 
+python2 2b.py --corpus <gzipped corpus path> --test <test questions path> --embeddings <gzipped embeddings path> --load_model <model path> [--model <lstm | cnn>] [--hidden_size <100>] [--embedding_size <200 | 300>] [--cuda <0 | 1>]
+
+Example Usage:
+(Tao Lei's embeddings trained on Stack Exchange and Wikipedia)
+python2 2b.py --corpus ../Android/corpus.tsv.gz --test android_test.txt --embeddings ../askubuntu/vector/vectors_pruned.200.txt.gz --load_model lstm_models/lstm_model3/epoch9 --model lstm --hidden_size 100 --embedding_size 200 --cuda 1
+
+(GloVe embeddings)
+python2 2b.py --corpus ../Android/corpus.tsv.gz --test android_test.txt --embeddings ../glove.pruned.txt.gz --load_model cnn_models/cnn_model8/epoch5 --model cnn --hidden_size 100 --embedding_size 300 --cuda 1
 """
 
 import sys

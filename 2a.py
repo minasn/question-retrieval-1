@@ -1,4 +1,8 @@
-"""Unsupervised methods used in the first part (Cosine Similarity etc).
+"""Part 2.3.1.a
+
+Unsupervised methods used in the first part (Cosine Similarity etc).
+
+Usage: python2 2a.py
 """
 
 import gzip

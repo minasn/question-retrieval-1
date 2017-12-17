@@ -1,3 +1,18 @@
+"""Part 1 
+
+Question Retrieval for question answering forums.
+
+Usage:
+python2 --corpus <gzipped corpus path> --embeddings <gzipped embeddings path> --train <train questions path> --dev <dev questions path> --test <test questions path> --model <lstm | cnn> --results_file <csv path> --batch_size <int batch size> --hidden_size <100> --embedding_size <200 | 300> --cuda <0 | 1>--save_model <0 | 1> --margin <float margin>
+
+Example Usage: 
+(LSTM)
+python2 --corpus ../askubuntu/text_tokenized.txt.gz --embeddings ../askubuntu/vector/vectors_pruned.200.txt.gz --train ../askubuntu/train_random.txt  --dev ../askubuntu/dev.txt --test ../askubuntu/test.txt --model lstm --results_file lstm_results.csv --batch_size 25 --hidden_size 100 --embedding_size 200 --cuda 1 --save_model 1 --margin 0.3
+
+(CNN)
+python2 --corpus ../askubuntu/text_tokenized.txt.gz --train ../askubuntu/train_random.txt --embeddings ../askubuntu/vector/vectors_pruned.200.txt.gz --dev ../askubuntu/dev.txt --test ../askubuntu/test.txt --model cnn --results_file cnn_results.csv --batch_size 25 --hidden_size 100 --embedding_size 200 --cuda 1 --save_model 1 --margin 0.3
+"""
+
 import sys
 import os
 import argparse
@@ -33,34 +48,34 @@ def main(args):
     if args.model == 'cnn':
         args.margin = 0.2
     
-    if args.load_model:
-        if args.model == 'lstm':
-            print("loading " + args.load_model)
-            lstm = nn.LSTM(input_size=args.embedding_size, hidden_size=args.hidden_size)
-            lstm.load_state_dict(torch.load(args.load_model))
-            optimizer = Adam(lstm.parameters())
-            if args.cuda:
-                lstm.cuda()
-        else:
-            print("loading " + args.load_model)
-            cnn = nn.Conv1d(in_channels=args.embedding_size, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
-            cnn.load_state_dict(torch.load(args.load_model))
-            optimizer = Adam(cnn.parameters())
-            if args.cuda:
-                cnn.cuda()
-    else:
-        if args.model == 'lstm':
-            print "training lstm"
-            lstm = nn.LSTM(input_size=args.embedding_size, hidden_size=args.hidden_size)
-            optimizer = Adam(lstm.parameters())
-            if args.cuda:
-                lstm.cuda()
-        else:
-            print "training cnn"
-            cnn = nn.Conv1d(in_channels=args.embedding_size, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
-            optimizer = Adam(cnn.parameters())
-            if args.cuda:
-                cnn.cuda()
+    # if args.load_model:
+    #     if args.model == 'lstm':
+    #         print("loading " + args.load_model)
+    #         lstm = nn.LSTM(input_size=args.embedding_size, hidden_size=args.hidden_size)
+    #         lstm.load_state_dict(torch.load(args.load_model))
+    #         optimizer = Adam(lstm.parameters())
+    #         if args.cuda:
+    #             lstm.cuda()
+    #     else:
+    #         print("loading " + args.load_model)
+    #         cnn = nn.Conv1d(in_channels=args.embedding_size, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+    #         cnn.load_state_dict(torch.load(args.load_model))
+    #         optimizer = Adam(cnn.parameters())
+    #         if args.cuda:
+    #             cnn.cuda()
+    # else:
+    #     if args.model == 'lstm':
+    #         print "training lstm"
+    #         lstm = nn.LSTM(input_size=args.embedding_size, hidden_size=args.hidden_size)
+    #         optimizer = Adam(lstm.parameters())
+    #         if args.cuda:
+    #             lstm.cuda()
+    #     else:
+    #         print "training cnn"
+    #         cnn = nn.Conv1d(in_channels=args.embedding_size, out_channels=args.hidden_size, kernel_size = 3, padding = 1)
+    #         optimizer = Adam(cnn.parameters())
+    #         if args.cuda:
+    #             cnn.cuda()
 
     if args.save_model:
         if args.model == 'lstm':
