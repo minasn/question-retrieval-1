@@ -143,7 +143,10 @@ def main(args):
                 encoder_loss = F.multi_margin_loss(cos_similarity, targets, margin=args.margin)
             total_loss += encoder_loss.cpu().data.numpy()[0]
 
-            domain_loss_func = nn.CrossEntropyLoss()
+            if args.cuda:
+                domain_loss_func = nn.CrossEntropyLoss().cuda()
+            else:
+                domain_loss_func = nn.CrossEntropyLoss()
             domain_classifier_loss = domain_loss_func(output, domain_labels)
             combined_loss = encoder_loss - args.lam * domain_classifier_loss
             combined_loss.backward()
