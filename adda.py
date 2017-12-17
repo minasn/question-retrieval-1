@@ -145,7 +145,7 @@ def main(args):
                 domain_classifier_loss = F.cross_entropy(output, domain_labels)
 
             total_loss += domain_classifier_loss.cpu().data.numpy()[0]
-            total_loss.backward()
+            domain_classifier_loss.backward()
 
             target_optimizer.step()
             feed_forward_optimizer.step()
