@@ -40,6 +40,8 @@ def load_data(filename, positive=True):
 raw_corpus, all_sequences = read_corpus("../Android/corpus.tsv.gz")
 
 def calculate_meter(data):
+	"""Calculate the AUC score.
+	"""
 	positives = {}
 	negatives = {}
 
