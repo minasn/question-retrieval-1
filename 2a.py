@@ -1,3 +1,6 @@
+"""Unsupervised methods used in the first part (Cosine Similarity etc).
+"""
+
 import gzip
 import numpy as np
 

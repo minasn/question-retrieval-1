@@ -69,48 +69,8 @@ def map_corpus(vocab_map, raw_corpus, max_len=100):
 def get_embeddings(titles, bodies, vocab_map, emb_vals):
     """Returns a numpy arrays [[title_word x # words] x # questions] and [[body_word x # words] x # questions]
     """
-    
-    # try:
-    #     title_embeddings = [[emb_vals[word_id] for word_id in title] for title in titles]
-    # except IndexError:
-    #     for title in titles:
-    #         for word_id in title:
-    #             trying = emb_vals[word_id]
-    #             # try:
-    #             #     trying = emb_vals[word_id]
-    #             # except IndexError:
-    #             #     print title
-    #             #     print word_id
     title_embeddings = [[emb_vals[int(word_id)] for word_id in title] for title in titles]
     body_embeddings = [[emb_vals[int(word_id)] for word_id in body] for body in bodies]
-
-    # below for debugging purposes
-    # title_embeddings = []
-    # body_embeddings = []
-
-    # for title in titles:
-    #     title_embedding = []
-    #     for word_id in title:
-    #         title_embedding.append(emb_vals[word_id])
-    #         # try:
-    #         #     title_embedding.append(emb_vals[word_id])
-    #         # except:
-    #         #     print "title"
-    #         #     print(word_id, type(word_id))
-    #         #     print(emb_vals[word_id])
-    #     title_embeddings.append(title_embedding)
-
-    # for body in bodies:
-    #     body_embedding = []
-    #     for word_id in body:
-    #         body_embeddings.append(emb_vals[word_id])
-    #         # try:
-    #         #     body_embeddings.append(emb_vals[word_id])
-    #         # except:
-    #         #     print "body"
-    #         #     print(word_id, type(word_id))
-    #         #     print(emb_vals[word_id])
-    #     body_embeddings.append(body_embedding)
 
     return title_embeddings, body_embeddings
 
@@ -194,13 +154,6 @@ def domain_classifier_batch(ids_corpus, data, padding_id):
 
             triples = create_hinge_batch(triples)
             return (titles, bodies, triples)
-            #batches.append((titles, bodies, triples))
-            # titles = [ ]
-            # bodies = [ ]
-            # triples = [ ]
-            # pid2id = {}
-            # count = 0
-    #return batches
 
 def create_batches(ids_corpus, data, batch_size, padding_id):
     data_order = range(len(data))
