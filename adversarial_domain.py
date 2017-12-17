@@ -133,11 +133,11 @@ def main(args):
             output = feed_forward.forward(hidden_combined)
 
 
-            domain_labels = [1]*int(hidden_ubuntu.size()[0]) + [0]*int(hidden_android.size()[0])
+            domain_labels = [1]*int(hidden_ubuntu_domain.size()[0]) + [0]*int(hidden_android_domain.size()[0])
             if args.cuda:
-		domain_labels = autograd.Variable(torch.LongTensor(domain_labels).cuda())
+                domain_labels = autograd.Variable(torch.LongTensor(domain_labels).cuda())
             else:
-		domain_labels = autograd.Variable(torch.LongTensor(domain_labels))
+                domain_labels = autograd.Variable(torch.LongTensor(domain_labels))
 
             if args.cuda:
                 triples_vectors = hidden_ubuntu[torch.LongTensor(triples.ravel()).cuda()]
