@@ -1,3 +1,10 @@
+"""Direct transfer using models trained on the AskUbuntu dataset and then
+evaluated on the Android dataset, without doing any domain adaptation. Uses embeddings and a trained LSTM or CNN model.
+
+Example Usage: 
+python2 2b.py --corpus ../Android/corpus.tsv.gz --test android_test.txt --embeddings ../glove.pruned.txt.gz --load_model cnn_models/cnn_model8/epoch9 [--model cnn] [--hidden_size 100] [--embedding_size 300] [--cuda 1]
+"""
+
 import sys
 import os
 import argparse
@@ -164,32 +171,29 @@ if __name__ == "__main__":
             type = str
         )
     argparser.add_argument("--test",
-            type = str,
-            default = ""
+            type = str
         )
     argparser.add_argument("--embeddings",
-            type = str,
-            default = ""
-        )
-    argparser.add_argument("--hidden_size",
-            type = int,
-            default = 100
-        )
-    argparser.add_argument("--cuda",
-            type = int,
-            default = 0
+            type = str
         )
     argparser.add_argument("--load_model",
-            type = str,
-            default = ""
+            type = str
         )
     argparser.add_argument("--model",
             type = str,
             default = "lstm"
         )
+    argparser.add_argument("--hidden_size",
+            type = int,
+            default = 100
+        )
     argparser.add_argument("--embedding_size",
             type = int,
             default = 200
+        )
+    argparser.add_argument("--cuda",
+            type = int,
+            default = 0
         )
 
     args = argparser.parse_args()
